@@ -1,0 +1,4013 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS/TO // 設備管理與借用登記（雲端即時同步版）</title>
+
+  <!-- Google Fonts: Noto Sans TC, Orbitron, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;600;700&family=Orbitron:wght@500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- SheetJS (支援直接解析與產生 .xlsx / .xls / .csv 試算表) -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+  <!-- Tailwind Custom Configuration -->
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Noto Sans TC"', 'sans-serif'],
+            display: ['"Orbitron"', '"Noto Sans TC"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', '"Noto Sans TC"', 'monospace'],
+          },
+          colors: {
+            space: '#050A15',
+            panel: 'rgba(12, 24, 48, 0.75)',
+            cyanNeon: '#00F0FF',
+            electricBlue: '#3B82F6',
+            neonGreen: '#00FF9D',
+            amberGlow: '#FFB800',
+            alertRed: '#FF2A5F',
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    /* 全域深邃太空藍黑背景與微光科技網格 */
+    body {
+      background-color: #050A15;
+      color: #E2E8F0;
+      font-family: 'Noto Sans TC', sans-serif;
+      background-image:
+        radial-gradient(circle at 15% 15%, rgba(0, 240, 255, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(59, 130, 246, 0.08) 0%, transparent 45%),
+        linear-gradient(rgba(0, 240, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.04) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 36px 36px, 36px 36px;
+      background-position: center center;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* 毛玻璃面板基底 */
+    .glass-panel {
+      background: rgba(12, 24, 48, 0.75);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 20px rgba(0, 240, 255, 0.03);
+    }
+
+    /* HUD 科技感邊角裝飾線條 */
+    .hud-frame {
+      position: relative;
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .hud-frame::before,
+    .hud-frame::after {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      pointer-events: none;
+      transition: all 0.25s ease;
+    }
+
+    .hud-frame::before {
+      top: -1px;
+      left: -1px;
+      border-top: 2px solid var(--hud-accent, #00F0FF);
+      border-left: 2px solid var(--hud-accent, #00F0FF);
+      border-top-left-radius: 0.75rem;
+    }
+
+    .hud-frame::after {
+      bottom: -1px;
+      right: -1px;
+      border-bottom: 2px solid var(--hud-accent, #00F0FF);
+      border-right: 2px solid var(--hud-accent, #00F0FF);
+      border-bottom-right-radius: 0.75rem;
+    }
+
+    .hud-frame:hover {
+      border-color: rgba(0, 240, 255, 0.55);
+      box-shadow: 0 0 24px rgba(0, 240, 255, 0.14), inset 0 0 24px rgba(0, 240, 255, 0.05);
+      transform: translateY(-2px);
+    }
+
+    .hud-frame:hover::before,
+    .hud-frame:hover::after {
+      width: 18px;
+      height: 18px;
+      filter: drop-shadow(0 0 6px var(--hud-accent, #00F0FF));
+    }
+
+    /* 狀態光暈變數 */
+    .accent-cyan { --hud-accent: #00F0FF; }
+    .accent-green { --hud-accent: #00FF9D; }
+    .accent-amber { --hud-accent: #FFB800; }
+    .accent-red { --hud-accent: #FF2A5F; }
+
+    /* 發光文字與按鈕效果 */
+    .text-glow-cyan {
+      text-shadow: 0 0 12px rgba(0, 240, 255, 0.55);
+    }
+
+    .btn-cyber-primary {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.18) 0%, rgba(59, 130, 246, 0.28) 100%);
+      border: 1px solid rgba(0, 240, 255, 0.65);
+      color: #00F0FF;
+      box-shadow: 0 0 14px rgba(0, 240, 255, 0.2);
+      transition: all 0.2s ease;
+    }
+    .btn-cyber-primary:hover {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.32) 0%, rgba(59, 130, 246, 0.45) 100%);
+      box-shadow: 0 0 22px rgba(0, 240, 255, 0.45);
+      color: #FFFFFF;
+    }
+
+    /* 自訂捲軸 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(5, 10, 21, 0.8);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0, 240, 255, 0.28);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(0, 240, 255, 0.55);
+    }
+
+    /* 動畫 */
+    @keyframes scanPulse {
+      0%, 100% { opacity: 0.45; }
+      50% { opacity: 1; }
+    }
+    .animate-scan {
+      animation: scanPulse 2.4s infinite ease-in-out;
+    }
+
+    @keyframes radarSweep {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    .animate-radar-sweep {
+      transform-origin: 50% 50%;
+      animation: radarSweep 3.2s linear infinite;
+    }
+
+    @keyframes toastSlideIn {
+      from {
+        opacity: 0;
+        transform: translateX(30px) scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0) scale(1);
+      }
+    }
+    .toast-enter {
+      animation: toastSlideIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* 日期選擇器深色模式修正 */
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(1) sepia(100%) saturate(500%) hue-rotate(150deg);
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body class="antialiased selection:bg-cyanNeon/30 selection:text-cyanNeon">
+
+  <!-- Toast 通知容器 (右上角) -->
+  <div id="toast-container" class="fixed top-4 right-4 z-[100] flex flex-col gap-3 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+  <!-- 頂部指揮中心導覽列 -->
+  <header class="sticky top-0 z-40 glass-panel border-b border-cyanNeon/25 border-t-0 border-x-0 rounded-none">
+    <div class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
+      <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        
+        <!-- 左側系統識別與雲端連線狀態 -->
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3.5">
+            <!-- HUD 核心動態圖示 -->
+            <div class="relative w-11 h-11 rounded-xl bg-cyanNeon/10 border border-cyanNeon/50 flex items-center justify-center shadow-[0_0_15px_rgba(0,240,255,0.25)] shrink-0">
+              <svg class="w-6 h-6 text-cyanNeon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <polygon points="12 2 21 7 21 17 12 22 3 17 3 7 12 2"></polygon>
+                <circle cx="12" cy="12" r="3" class="animate-scan"></circle>
+                <line x1="12" y1="2" x2="12" y2="9"></line>
+                <line x1="21" y1="17" x2="14.6" y2="13.5"></line>
+                <line x1="3" y1="17" x2="9.4" y2="13.5"></line>
+              </svg>
+              <span id="header-corner-dot" class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyanNeon shadow-[0_0_8px_#00F0FF]"></span>
+            </div>
+
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h1 class="font-display text-lg sm:text-xl font-bold tracking-wider text-white text-glow-cyan">
+                  CS/TO <span class="text-cyanNeon">//</span> 設備管理與借用登記
+                </h1>
+                <span class="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-mono bg-cyanNeon/10 text-cyanNeon border border-cyanNeon/30">
+                  HUD-OS v4.2
+                </span>
+                <!-- 多人即時雲端連線狀態指示器 -->
+                <span id="cloud-sync-badge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-mono bg-cyanNeon/15 text-cyanNeon border border-cyanNeon/40 transition-all" title="多人即時雲端資料庫同步狀態">
+                  <span id="cloud-sync-dot" class="w-1.5 h-1.5 rounded-full bg-cyanNeon animate-ping"></span>
+                  <span id="cloud-sync-text">CLOUD SYNC // CONNECTING</span>
+                </span>
+              </div>
+              <p class="text-xs text-slate-400 mt-0.5 tracking-wide">
+                高精密研發資產遙測、即時借還調度與狀態追蹤終端
+              </p>
+            </div>
+          </div>
+
+          <!-- 手機版快速跳轉日誌按鈕 -->
+          <a href="#activity-log-section" class="lg:hidden inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-slate-800/80 border border-cyanNeon/30 text-cyanNeon shrink-0">
+            <i data-lucide="activity" class="w-4 h-4"></i>
+            <span>異動日誌</span>
+          </a>
+        </div>
+
+        <!-- 右側即時系統時鐘與快捷操作按鈕 -->
+        <div class="flex flex-wrap items-center justify-between lg:justify-end gap-3">
+          <!-- 權限身分狀態與切換器（外層容器確保 Lucide SVG 動態重繪穩定） -->
+          <button id="role-switcher-btn" onclick="openAuthModal()" class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900/90 hover:bg-slate-800 border border-slate-600/80 text-slate-200 transition cursor-pointer" title="點擊切換權限身分或設定雲端通行碼">
+            <span id="role-indicator-dot" class="w-2 h-2 rounded-full bg-cyanNeon"></span>
+            <span id="role-icon-wrap" class="inline-flex items-center justify-center">
+              <i data-lucide="shield" class="w-4 h-4 text-cyanNeon"></i>
+            </span>
+            <div class="text-left leading-tight">
+              <div id="role-badge-title" class="font-bold tracking-wide">訪客模式</div>
+              <div id="role-badge-sub" class="text-[10px] font-mono text-slate-400">GUEST // 點擊解鎖管理</div>
+            </div>
+          </button>
+
+          <!-- 即時系統時鐘 -->
+          <div class="flex items-center gap-2.5 px-3.5 py-2 rounded-xl bg-slate-950/70 border border-cyanNeon/25">
+            <i data-lucide="clock" class="w-4 h-4 text-cyanNeon animate-pulse"></i>
+            <div class="flex flex-col">
+              <span class="text-[10px] font-mono uppercase tracking-widest text-slate-400 leading-none">SYS TELEMETRY TIME</span>
+              <span id="live-clock" class="font-mono text-sm font-semibold text-cyanNeon tracking-wider mt-0.5">
+                ----/--/-- --:--:--
+              </span>
+            </div>
+          </div>
+
+          <!-- 快捷操作按鈕群組 -->
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="btn-add-eq" onclick="openAddModal()" class="hidden btn-cyber-primary items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold cursor-pointer">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i>
+              <span>+ 新增設備</span>
+            </button>
+
+            <button id="btn-import-eq" onclick="openImportModal()" class="hidden items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold bg-neonGreen/15 hover:bg-neonGreen/25 text-neonGreen border border-neonGreen/50 shadow-[0_0_14px_rgba(0,255,157,0.18)] transition cursor-pointer">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+              <span>匯入 Excel / CSV</span>
+            </button>
+
+            <button id="btn-clear-all" onclick="openClearAllModal()" class="hidden items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-semibold bg-alertRed/15 hover:bg-alertRed/25 text-alertRed border border-alertRed/50 shadow-[0_0_14px_rgba(255,42,95,0.18)] transition cursor-pointer" title="管理員專屬：一鍵清空所有設備資料">
+              <i data-lucide="eraser" class="w-4 h-4"></i>
+              <span>一鍵清除</span>
+            </button>
+
+            <button onclick="exportCSV()" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium bg-electricBlue/15 hover:bg-electricBlue/25 text-blue-300 hover:text-white border border-electricBlue/40 transition cursor-pointer">
+              <i data-lucide="download" class="w-4 h-4"></i>
+              <span>匯出 CSV 報表</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- 主內容區塊 -->
+  <main class="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- 1. 即時狀態遙測儀表板 (4 張 KPI 數據卡) -->
+    <section aria-label="即時狀態遙測儀表板" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      
+      <!-- KPI 1: 總設備資產數 -->
+      <div id="kpi-card-all" onclick="filterByKPI('all')" class="glass-panel hud-frame accent-cyan rounded-xl p-5 cursor-pointer select-none ring-2 ring-cyanNeon/60">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="text-xs font-mono tracking-wider text-cyanNeon/80 uppercase">TOTAL ASSETS // 總資產數</p>
+            <h2 class="text-sm font-medium text-slate-300 mt-1">總設備資產數</h2>
+          </div>
+          <div class="w-10 h-10 rounded-lg bg-cyanNeon/10 border border-cyanNeon/30 flex items-center justify-center text-cyanNeon">
+            <i data-lucide="cpu" class="w-5 h-5"></i>
+          </div>
+        </div>
+        <div class="mt-4 flex items-baseline justify-between">
+          <div class="flex items-baseline gap-2">
+            <span id="kpi-total" class="font-display text-3xl font-bold text-white tracking-tight">0</span>
+            <span class="text-xs text-slate-400">台在冊設備</span>
+          </div>
+          <span class="text-[11px] font-mono text-cyanNeon bg-cyanNeon/10 px-2 py-0.5 rounded border border-cyanNeon/25">點擊檢視全部</span>
+        </div>
+      </div>
+
+      <!-- KPI 2: 目前可借用數 (含可用率進度條) -->
+      <div id="kpi-card-available" onclick="filterByKPI('available')" class="glass-panel hud-frame accent-green rounded-xl p-5 cursor-pointer select-none">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="text-xs font-mono tracking-wider text-neonGreen/80 uppercase">AVAILABLE // 可調度狀態</p>
+            <h2 class="text-sm font-medium text-slate-300 mt-1">目前可借用數</h2>
+          </div>
+          <div class="w-10 h-10 rounded-lg bg-neonGreen/10 border border-neonGreen/30 flex items-center justify-center text-neonGreen">
+            <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+          </div>
+        </div>
+        <div class="mt-3">
+          <div class="flex items-baseline justify-between">
+            <div class="flex items-baseline gap-2">
+              <span id="kpi-available" class="font-display text-3xl font-bold text-neonGreen tracking-tight">0</span>
+              <span class="text-xs text-slate-400">台待命中</span>
+            </div>
+            <span id="kpi-available-rate" class="font-mono text-xs font-semibold text-neonGreen">可用率 0%</span>
+          </div>
+          <!-- 可用率進度條 -->
+          <div class="w-full h-2 bg-slate-900/90 rounded-full mt-2.5 overflow-hidden border border-slate-700/70">
+            <div id="kpi-available-bar" class="h-full bg-gradient-to-r from-emerald-500 to-neonGreen rounded-full transition-all duration-500 shadow-[0_0_10px_#10B981]" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- KPI 3: 借出中數量 -->
+      <div id="kpi-card-borrowed" onclick="filterByKPI('borrowed')" class="glass-panel hud-frame accent-amber rounded-xl p-5 cursor-pointer select-none">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="text-xs font-mono tracking-wider text-amberGlow/80 uppercase">DEPLOYED // 任務執行中</p>
+            <h2 class="text-sm font-medium text-slate-300 mt-1">借出中數量</h2>
+          </div>
+          <div class="w-10 h-10 rounded-lg bg-amberGlow/10 border border-amberGlow/30 flex items-center justify-center text-amberGlow">
+            <i data-lucide="user-check" class="w-5 h-5"></i>
+          </div>
+        </div>
+        <div class="mt-4 flex items-baseline justify-between">
+          <div class="flex items-baseline gap-2">
+            <span id="kpi-borrowed" class="font-display text-3xl font-bold text-amberGlow tracking-tight">0</span>
+            <span class="text-xs text-slate-400">台使用中</span>
+          </div>
+          <span id="kpi-overdue-badge" class="hidden text-[11px] font-mono font-semibold text-alertRed bg-alertRed/15 px-2 py-0.5 rounded border border-alertRed/40 animate-pulse">
+            含 0 筆逾期
+          </span>
+        </div>
+      </div>
+
+      <!-- KPI 4: 維護 / 異常數量 -->
+      <div id="kpi-card-maintenance" onclick="filterByKPI('maintenance')" class="glass-panel hud-frame accent-red rounded-xl p-5 cursor-pointer select-none">
+        <div class="flex items-start justify-between">
+          <div>
+            <p class="text-xs font-mono tracking-wider text-alertRed/80 uppercase">MAINTENANCE // 檢修隔離</p>
+            <h2 class="text-sm font-medium text-slate-300 mt-1">維護 / 異常數量</h2>
+          </div>
+          <div class="w-10 h-10 rounded-lg bg-alertRed/10 border border-alertRed/30 flex items-center justify-center text-alertRed">
+            <i data-lucide="wrench" class="w-5 h-5"></i>
+          </div>
+        </div>
+        <div class="mt-4 flex items-baseline justify-between">
+          <div class="flex items-baseline gap-2">
+            <span id="kpi-maintenance" class="font-display text-3xl font-bold text-alertRed tracking-tight">0</span>
+            <span class="text-xs text-slate-400">台維護檢修中</span>
+          </div>
+          <span class="text-[11px] font-mono text-slate-400">需工程師排查</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- 2. 多維度搜尋與篩選控制列 -->
+    <section aria-label="多維度搜尋與篩選控制列" class="glass-panel rounded-xl p-4 space-y-4">
+      <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+        
+        <!-- 關鍵字即時搜尋框 -->
+        <div class="relative flex-1 min-w-[260px]">
+          <i data-lucide="search" class="w-4 h-4 text-cyanNeon absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          <input
+            type="text"
+            id="search-input"
+            oninput="handleSearchInput(this.value)"
+            placeholder="搜尋設備編號 (如 EQ-8042)、設備名稱、型號規格或借用人姓名..."
+            class="w-full pl-10 pr-10 py-2.5 rounded-xl bg-slate-950/80 border border-cyanNeon/30 focus:border-cyanNeon focus:outline-none focus:ring-2 focus:ring-cyanNeon/20 text-sm text-white placeholder-slate-500 transition"
+          />
+          <button id="clear-search-btn" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyanNeon cursor-pointer">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- 狀態篩選與檢視模式切換 -->
+        <div class="flex flex-wrap items-center justify-between sm:justify-end gap-3">
+          
+          <!-- 狀態切換器 -->
+          <div class="inline-flex p-1 rounded-xl bg-slate-950/80 border border-slate-800">
+            <button onclick="setStatusFilter('all')" data-status-btn="all" class="status-tab px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer bg-cyanNeon/20 text-cyanNeon border border-cyanNeon/40">
+              全部狀態
+            </button>
+            <button onclick="setStatusFilter('available')" data-status-btn="available" class="status-tab px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer text-slate-400 hover:text-white border border-transparent">
+              可借用
+            </button>
+            <button onclick="setStatusFilter('borrowed')" data-status-btn="borrowed" class="status-tab px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer text-slate-400 hover:text-white border border-transparent">
+              借出中
+            </button>
+            <button onclick="setStatusFilter('maintenance')" data-status-btn="maintenance" class="status-tab px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer text-slate-400 hover:text-white border border-transparent">
+              維護中
+            </button>
+          </div>
+
+          <!-- 檢視模式切換 (科技卡片模式 / 數據列表模式) -->
+          <div class="inline-flex p-1 rounded-xl bg-slate-950/80 border border-slate-800">
+            <button onclick="setViewMode('grid')" id="view-grid-btn" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-electricBlue/25 text-cyanNeon border border-cyanNeon/40 transition cursor-pointer" title="科技卡片模式">
+              <i data-lucide="layout-grid" class="w-3.5 h-3.5"></i>
+              <span class="hidden sm:inline">科技卡片</span>
+            </button>
+            <button onclick="setViewMode('table')" id="view-table-btn" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white border border-transparent transition cursor-pointer" title="數據列表模式">
+              <i data-lucide="list" class="w-3.5 h-3.5"></i>
+              <span class="hidden sm:inline">數據列表</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 分類標籤列 (動態依據現有與匯入設備分類生成) -->
+      <div class="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-800/80">
+        <div class="flex items-center gap-2 overflow-x-auto pb-1 max-w-full" id="category-tabs">
+          <span class="text-xs font-mono text-slate-400 mr-1 shrink-0 flex items-center gap-1">
+            <i data-lucide="filter" class="w-3.5 h-3.5 text-cyanNeon"></i> 設備分類：
+          </span>
+          <button onclick="setCategoryFilter('all')" data-cat-btn="all" class="cat-tab shrink-0 px-3 py-1 rounded-full text-xs font-medium bg-cyanNeon/20 text-cyanNeon border border-cyanNeon/50 transition cursor-pointer">
+            全部
+          </button>
+        </div>
+
+        <div class="text-xs font-mono text-slate-400">
+          顯示 <span id="filtered-count" class="text-cyanNeon font-bold">0</span> / <span id="total-count-label">0</span> 筆設備資料
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. 主工作區：左側設備資產清單 + 右側即時借還異動日誌 -->
+    <div class="flex flex-col lg:flex-row gap-6 items-start">
+      
+      <!-- 左側：設備資產清單區 -->
+      <div class="w-full lg:flex-1 min-w-0">
+        <!-- 雲端連線載入中狀態 (Cloud Sync Initial Loading State) -->
+        <div id="cloud-loading-state" class="glass-panel hud-frame accent-cyan rounded-2xl p-12 text-center">
+          <div class="w-16 h-16 rounded-2xl bg-cyanNeon/10 border border-cyanNeon/40 flex items-center justify-center mx-auto text-cyanNeon mb-4">
+            <i data-lucide="cloud" class="w-8 h-8 animate-bounce"></i>
+          </div>
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-mono bg-cyanNeon/10 text-cyanNeon border border-cyanNeon/30 mb-2">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyanNeon animate-ping"></span>
+            CLOUD TELEMETRY HANDSHAKE
+          </div>
+          <h3 class="font-display text-lg font-bold text-white tracking-wide">
+            正在與雲端資料庫建立即時同步通道...
+          </h3>
+          <p class="text-xs text-slate-400 mt-1.5">
+            正在載入最新設備資產庫存、借還調度狀態與系統異動日誌
+          </p>
+        </div>
+
+        <!-- 卡片模式容器 -->
+        <div id="equipment-grid-view" class="hidden grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+
+        <!-- 數據列表模式容器 -->
+        <div id="equipment-table-view" class="hidden glass-panel rounded-xl overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="border-b border-cyanNeon/25 bg-slate-950/70 text-[11px] font-mono uppercase tracking-wider text-cyanNeon">
+                  <th class="py-3.5 px-4">設備編號</th>
+                  <th class="py-3.5 px-4">設備名稱與規格</th>
+                  <th class="py-3.5 px-4">分類 / 存放櫃位</th>
+                  <th class="py-3.5 px-4">目前狀態</th>
+                  <th class="py-3.5 px-4">借用與歸還資訊</th>
+                  <th class="py-3.5 px-4 text-right">指令操作</th>
+                </tr>
+              </thead>
+              <tbody id="equipment-table-body" class="divide-y divide-slate-800/80 text-sm"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 資料庫為空時的空狀態 HUD 面板 (Zero Initial Data Empty State) -->
+        <div id="zero-data-empty-state" class="hidden glass-panel hud-frame accent-cyan rounded-2xl p-10 sm:p-14 text-center relative overflow-hidden">
+          <!-- 雷達掃描線動畫圖示 -->
+          <div class="relative w-24 h-24 mx-auto mb-6 flex items-center justify-center">
+            <svg class="w-24 h-24 text-cyanNeon" viewBox="0 0 100 100" fill="none">
+              <circle cx="50" cy="50" r="46" stroke="rgba(0, 240, 255, 0.25)" stroke-width="1.5" stroke-dasharray="4 4" />
+              <circle cx="50" cy="50" r="32" stroke="rgba(0, 240, 255, 0.2)" stroke-width="1" />
+              <circle cx="50" cy="50" r="16" stroke="rgba(0, 240, 255, 0.35)" stroke-width="1" />
+              <line x1="50" y1="2" x2="50" y2="98" stroke="rgba(0, 240, 255, 0.15)" stroke-width="1" />
+              <line x1="2" y1="50" x2="98" y2="50" stroke="rgba(0, 240, 255, 0.15)" stroke-width="1" />
+              <!-- 動態掃描扇形光束 -->
+              <g class="animate-radar-sweep">
+                <path d="M50 50 L50 4 A46 46 0 0 1 90 27 Z" fill="url(#radarGrad)" />
+                <line x1="50" y1="50" x2="50" y2="4" stroke="#00F0FF" stroke-width="2" />
+              </g>
+              <circle cx="50" cy="50" r="4" fill="#00F0FF" class="animate-pulse" />
+              <defs>
+                <linearGradient id="radarGrad" x1="50" y1="4" x2="90" y2="50" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stop-color="#00F0FF" stop-opacity="0.45" />
+                  <stop offset="100%" stop-color="#00F0FF" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-mono bg-cyanNeon/10 text-cyanNeon border border-cyanNeon/30 mb-3">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyanNeon animate-ping"></span>
+            STORAGE STANDBY // ZERO RECORDS
+          </div>
+
+          <h3 class="font-display text-lg sm:text-xl font-bold text-white tracking-wide text-glow-cyan">
+            資料庫目前為空 // 尚未登錄任何設備資產
+          </h3>
+          <p class="text-sm text-slate-400 mt-2 max-w-lg mx-auto leading-relaxed">
+            遙測儲存陣列已就緒。管理員建檔或匯入 <span class="text-neonGreen font-mono">Equipment.xlsx</span> 後，所有連線裝置皆會即時同步顯示。
+          </p>
+
+          <!-- 管理員專屬建檔操作區 -->
+          <div id="empty-state-admin-actions" class="hidden mt-6 flex-wrap items-center justify-center gap-3">
+            <button onclick="downloadExcelTemplate()" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold tracking-wide bg-electricBlue/20 hover:bg-electricBlue/30 text-blue-300 hover:text-white border border-electricBlue/60 shadow-[0_0_20px_rgba(59,130,246,0.22)] transition cursor-pointer">
+              <i data-lucide="file-down" class="w-5 h-5"></i>
+              <span>下載 Excel 匯入範本 (.xlsx)</span>
+            </button>
+
+            <button onclick="openImportModal()" class="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold tracking-wide bg-neonGreen/20 hover:bg-neonGreen/30 text-neonGreen border border-neonGreen/60 shadow-[0_0_25px_rgba(0,255,157,0.28)] transition cursor-pointer">
+              <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+              <span>匯入 Equipment.xlsx / CSV</span>
+            </button>
+
+            <button onclick="openAddModal()" class="btn-cyber-primary inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold tracking-wide shadow-[0_0_25px_rgba(0,240,255,0.25)] cursor-pointer">
+              <i data-lucide="plus-circle" class="w-5 h-5"></i>
+              <span>+ 手動新增首筆設備</span>
+            </button>
+          </div>
+
+          <!-- 訪客模式提示與解鎖引導區 -->
+          <div id="empty-state-guest-notice" class="mt-6 flex flex-col items-center justify-center gap-3">
+            <div class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900/90 border border-slate-700 text-xs text-slate-300">
+              <i data-lucide="lock" class="w-4 h-4 text-amberGlow"></i>
+              <span>目前為「訪客模式」，新增與批次匯入設備需切換至管理員權限</span>
+            </div>
+            <button onclick="openAuthModal()" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold bg-amberGlow/20 hover:bg-amberGlow/30 text-amberGlow border border-amberGlow/60 shadow-[0_0_20px_rgba(255,184,0,0.2)] transition cursor-pointer">
+              <i data-lucide="key-round" class="w-4 h-4"></i>
+              <span>切換為管理員以建置設備</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 無符合搜尋篩選結果提示 -->
+        <div id="empty-state" class="hidden glass-panel rounded-xl p-12 text-center">
+          <div class="w-16 h-16 rounded-2xl bg-cyanNeon/10 border border-cyanNeon/30 flex items-center justify-center mx-auto text-cyanNeon mb-4">
+            <i data-lucide="radar" class="w-8 h-8"></i>
+          </div>
+          <h3 class="text-lg font-bold text-white">未偵測到符合條件的設備節點</h3>
+          <p class="text-sm text-slate-400 mt-1 max-w-md mx-auto">
+            請嘗試調整搜尋關鍵字、切換設備分類或重置狀態篩選條件。
+          </p>
+          <button onclick="resetAllFilters()" class="mt-5 btn-cyber-primary px-4 py-2 rounded-xl text-sm font-medium cursor-pointer">
+            清除所有篩選條件
+          </button>
+        </div>
+      </div>
+
+      <!-- 右側：即時借還異動日誌 (Activity Log) -->
+      <aside id="activity-log-section" class="w-full lg:w-[370px] xl:w-[400px] shrink-0 glass-panel hud-frame accent-cyan rounded-xl p-4 lg:sticky lg:top-24">
+        <div class="flex items-center justify-between pb-3 border-b border-cyanNeon/20">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-cyanNeon animate-ping"></span>
+            <h2 class="font-display text-sm font-bold tracking-wider text-white">
+              即時借還異動日誌
+            </h2>
+          </div>
+          <span id="log-count-badge" class="font-mono text-[11px] px-2 py-0.5 rounded bg-cyanNeon/10 text-cyanNeon border border-cyanNeon/30">
+            0 筆紀錄
+          </span>
+        </div>
+
+        <p class="text-[11px] font-mono text-slate-400 mt-2 mb-3">
+          TELEMETRY AUDIT STREAM // 跨裝置即時稽核軌跡
+        </p>
+
+        <!-- 日誌列表滾動區 -->
+        <div id="activity-log-list" class="space-y-3 max-h-[620px] overflow-y-auto pr-1"></div>
+      </aside>
+
+    </div>
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- 彈出式互動視窗群組 (Modals) - 嚴格不使用 alert() / confirm()           -->
+  <!-- ===================================================================== -->
+
+  <!-- 1. 借用登記視窗 (Borrow Modal) -->
+  <div id="borrow-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="glass-panel hud-frame accent-cyan rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-cyanNeon/25">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-cyanNeon/15 border border-cyanNeon/40 flex items-center justify-center text-cyanNeon">
+            <i data-lucide="file-signature" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-lg text-white">設備借用登記程序</h3>
+            <p class="text-[11px] font-mono text-cyanNeon">EQUIPMENT CHECK-OUT PROTOCOL</p>
+          </div>
+        </div>
+        <button onclick="closeModal('borrow-modal')" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- 選定設備摘要卡 -->
+      <div id="borrow-device-summary" class="mt-4 p-3.5 rounded-xl bg-slate-950/80 border border-cyanNeon/25"></div>
+
+      <!-- 借用表單 -->
+      <form id="borrow-form" onsubmit="submitBorrowForm(event)" class="mt-4 space-y-3.5">
+        <input type="hidden" id="borrow-eq-id" />
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">借用人姓名 <span class="text-alertRed">*</span></label>
+            <input type="text" id="borrower-name" required placeholder="例如：王大明"
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm text-white" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">所屬部門 <span class="text-alertRed">*</span></label>
+            <input type="text" id="borrower-dept" required placeholder="例如：AI 演算法研發部"
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm text-white" />
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">聯絡分機 / 公司信箱 <span class="text-alertRed">*</span></label>
+            <input type="text" id="borrower-contact" required placeholder="例如：#4210 或 ming@nexus.tw"
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm text-white" />
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">預計歸還日期 <span class="text-alertRed">*</span></label>
+            <input type="date" id="borrow-return-date" required
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm text-white font-mono" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">借用用途 / 專案代號 <span class="text-alertRed">*</span></label>
+          <input type="text" id="borrow-purpose" required placeholder="例如：專案 Project-Valkyrie 模型推論與壓力測試"
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm text-white" />
+        </div>
+
+        <div id="borrow-error-msg" class="hidden text-xs text-alertRed bg-alertRed/10 border border-alertRed/30 rounded-lg px-3 py-2"></div>
+
+        <div class="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5">
+          <button type="button" onclick="closeModal('borrow-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 transition cursor-pointer">
+            取消操作
+          </button>
+          <button type="submit" id="borrow-submit-btn" class="btn-cyber-primary inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold cursor-pointer">
+            <i data-lucide="check" class="w-4 h-4"></i>
+            <span>確認核准借出</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. 設備歸還視窗 (Return Modal) -->
+  <div id="return-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="glass-panel hud-frame accent-amber rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-amberGlow/30">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-amberGlow/15 border border-amberGlow/40 flex items-center justify-center text-amberGlow">
+            <i data-lucide="corner-down-left" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-lg text-white">設備歸還驗收程序</h3>
+            <p class="text-[11px] font-mono text-amberGlow">EQUIPMENT CHECK-IN & INSPECTION</p>
+          </div>
+        </div>
+        <button onclick="closeModal('return-modal')" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- 歸還設備與借用人資訊摘要 -->
+      <div id="return-device-summary" class="mt-4 p-3.5 rounded-xl bg-slate-950/80 border border-amberGlow/30"></div>
+
+      <form id="return-form" onsubmit="submitReturnForm(event)" class="mt-4 space-y-4">
+        <input type="hidden" id="return-eq-id" />
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-2">請選擇設備歸還點檢狀態 <span class="text-alertRed">*</span></label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- 選項 1: 功能正常 -->
+            <label class="cursor-pointer">
+              <input type="radio" name="return-condition" value="normal" checked class="peer sr-only" />
+              <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-700 peer-checked:border-neonGreen peer-checked:bg-neonGreen/10 transition">
+                <div class="flex items-center gap-2 text-neonGreen font-semibold text-sm">
+                  <i data-lucide="shield-check" class="w-4 h-4"></i>
+                  <span>功能正常，直接入庫</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">配件齊全且運作無誤，立即恢復為可借用狀態。</p>
+              </div>
+            </label>
+
+            <!-- 選項 2: 發現異常 -->
+            <label class="cursor-pointer">
+              <input type="radio" name="return-condition" value="damaged" class="peer sr-only" />
+              <div class="p-3 rounded-xl bg-slate-900/80 border border-slate-700 peer-checked:border-alertRed peer-checked:bg-alertRed/10 transition">
+                <div class="flex items-center gap-2 text-alertRed font-semibold text-sm">
+                  <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                  <span>發現異常，轉入維護</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">硬體受損或需校準，自動標記為維護中並通知檢修。</p>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">歸還驗收備註（若轉入維護請簡述異常狀況）</label>
+          <textarea id="return-note" rows="2" placeholder="例如：外觀與鏡頭鏡片完好，電池已充飽歸位..."
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm text-white"></textarea>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5">
+          <button type="button" onclick="closeModal('return-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 transition cursor-pointer">
+            取消
+          </button>
+          <button type="submit" id="return-submit-btn" class="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold bg-amberGlow/20 hover:bg-amberGlow/30 text-amberGlow border border-amberGlow/60 shadow-[0_0_15px_rgba(245,158,11,0.25)] transition cursor-pointer">
+            <i data-lucide="check-circle" class="w-4 h-4"></i>
+            <span>完成歸還手續</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. 新增設備入庫視窗 (Add Equipment Modal) -->
+  <div id="add-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="glass-panel hud-frame accent-cyan rounded-2xl max-w-lg w-full p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-cyanNeon/25">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-cyanNeon/15 border border-cyanNeon/40 flex items-center justify-center text-cyanNeon">
+            <i data-lucide="package-plus" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-lg text-white">新增高科技設備入庫</h3>
+            <p class="text-[11px] font-mono text-cyanNeon">NEW ASSET REGISTRATION</p>
+          </div>
+        </div>
+        <button onclick="closeModal('add-modal')" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="add-form" onsubmit="submitAddForm(event)" class="mt-4 space-y-3.5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">設備編號 <span class="text-alertRed">*</span></label>
+            <div class="flex gap-1.5">
+              <input type="text" id="new-eq-id" required placeholder="EQ-1001"
+                class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm font-mono text-cyanNeon uppercase" />
+              <button type="button" onclick="generateRandomEqId()" title="自動產生編號"
+                class="px-2.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-cyanNeon transition cursor-pointer">
+                <i data-lucide="sparkles" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">設備分類 <span class="text-alertRed">*</span></label>
+            <input type="text" id="new-eq-category" list="category-datalist" required placeholder="輸入或選擇既有分類..."
+              class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm text-white" />
+            <datalist id="category-datalist"></datalist>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">設備名稱 / 完整型號 <span class="text-alertRed">*</span></label>
+          <input type="text" id="new-eq-name" required placeholder="例如：NVIDIA Jetson AGX Orin 開發者套件"
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm text-white" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">核心硬體規格描述 <span class="text-alertRed">*</span></label>
+          <input type="text" id="new-eq-specs" required placeholder="例如：275 TOPS AI算力 / 64GB LPDDR5 / 含散熱底座"
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm text-white" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">存放位置 / 智慧櫃位 <span class="text-alertRed">*</span></label>
+          <input type="text" id="new-eq-location" required placeholder="例如：A區-邊緣運算實驗櫃 05"
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm text-white" />
+        </div>
+
+        <div id="add-error-msg" class="hidden text-xs text-alertRed bg-alertRed/10 border border-alertRed/30 rounded-lg px-3 py-2"></div>
+
+        <div class="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5">
+          <button type="button" onclick="closeModal('add-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 transition cursor-pointer">
+            取消
+          </button>
+          <button type="submit" id="add-submit-btn" class="btn-cyber-primary inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold cursor-pointer">
+            <i data-lucide="database" class="w-4 h-4"></i>
+            <span>寫入資產資料庫</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. 設備報修登記視窗 (Report Maintenance Modal) -->
+  <div id="maint-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="glass-panel hud-frame accent-red rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-alertRed/30">
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-lg bg-alertRed/15 border border-alertRed/40 flex items-center justify-center text-alertRed">
+            <i data-lucide="shield-alert" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-lg text-white">設備異常報修通報</h3>
+            <p class="text-[11px] font-mono text-alertRed">FAULT DIAGNOSTIC REPORT</p>
+          </div>
+        </div>
+        <button onclick="closeModal('maint-modal')" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- 報修設備摘要 -->
+      <div id="maint-device-summary" class="mt-4 p-3 rounded-xl bg-slate-950/80 border border-alertRed/30"></div>
+
+      <form id="maint-form" onsubmit="submitMaintForm(event)" class="mt-4 space-y-3.5">
+        <input type="hidden" id="maint-eq-id" />
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">通報人員姓名 <span class="text-alertRed">*</span></label>
+          <input type="text" id="maint-reporter" required placeholder="例如：林工程師"
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-alertRed focus:outline-none text-sm text-white" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">異常現象或故障描述 <span class="text-alertRed">*</span></label>
+          <textarea id="maint-reason" rows="3" required placeholder="例如：電源模組啟動異常、光學鏡頭需要重新校準..."
+            class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-alertRed focus:outline-none text-sm text-white"></textarea>
+        </div>
+
+        <div class="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5">
+          <button type="button" onclick="closeModal('maint-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 transition cursor-pointer">
+            取消
+          </button>
+          <button type="submit" id="maint-submit-btn" class="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold bg-alertRed hover:bg-rose-600 text-white shadow-[0_0_15px_rgba(255,42,95,0.4)] transition cursor-pointer">
+            <i data-lucide="wrench" class="w-4 h-4"></i>
+            <span>確認送出報修</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. 刪除單筆設備確認視窗 (Delete Single Equipment Modal) -->
+  <div id="delete-eq-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="glass-panel hud-frame accent-red rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+      <div class="flex items-center gap-3 text-alertRed">
+        <div class="w-10 h-10 rounded-xl bg-alertRed/15 border border-alertRed/40 flex items-center justify-center shrink-0">
+          <i data-lucide="trash-2" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="font-bold text-lg text-white">確認移除此筆設備資產？</h3>
+          <p class="text-xs font-mono text-alertRed">REMOVE ASSET NODE</p>
+        </div>
+      </div>
+
+      <input type="hidden" id="delete-eq-id" />
+      <div id="delete-device-summary" class="mt-4 p-3 rounded-xl bg-slate-950/80 border border-alertRed/30"></div>
+
+      <p class="text-xs text-slate-400 mt-3">
+        移除後該設備將從資產清冊中同步註銷，並於右側系統日誌留存刪除紀錄。
+      </p>
+
+      <div class="mt-5 flex items-center justify-end gap-2.5">
+        <button onclick="closeModal('delete-eq-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white bg-slate-800/80 transition cursor-pointer">
+          取消
+        </button>
+        <button id="delete-confirm-btn" onclick="confirmDeleteEquipment()" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-alertRed hover:bg-rose-600 text-white shadow-[0_0_15px_rgba(255,42,95,0.4)] transition cursor-pointer">
+          <i data-lucide="trash-2" class="w-4 h-4"></i>
+          <span>確認刪除設備</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 批次匯入 Excel / CSV 視窗 (Batch Import Modal) -->
+  <div id="import-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="glass-panel hud-frame accent-green rounded-2xl max-w-4xl w-full p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+      <!-- 標題列 -->
+      <div class="flex items-center justify-between pb-3 border-b border-neonGreen/30 shrink-0">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-neonGreen/15 border border-neonGreen/40 flex items-center justify-center text-neonGreen">
+            <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-lg text-white">批次匯入設備清冊 (Excel / CSV)</h3>
+            <p class="text-[11px] font-mono text-neonGreen">SMART SPREADSHEET PARSER // 支援 .XLSX .XLS .CSV 多工作表自動對應</p>
+          </div>
+        </div>
+        <button onclick="closeModal('import-modal')" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- 內容滾動區 -->
+      <div class="mt-4 space-y-4 overflow-y-auto pr-1 flex-1">
+        <!-- 快速下載標準 Excel 範本提示列 -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-electricBlue/10 border border-electricBlue/40">
+          <div class="flex items-start sm:items-center gap-2.5">
+            <div class="w-8 h-8 rounded-lg bg-electricBlue/20 border border-electricBlue/40 flex items-center justify-center text-blue-300 shrink-0 mt-0.5 sm:mt-0">
+              <i data-lucide="table" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <div class="text-xs font-bold text-white">尚未建立 Excel 表格？立即下載標準匯入範本</div>
+              <div class="text-[11px] text-slate-300 mt-0.5">內含完整標準欄位與 3 種狀態範例列，編輯儲存後直接拖曳至下方即可批次匯入。</div>
+            </div>
+          </div>
+          <button type="button" onclick="downloadExcelTemplate()" class="shrink-0 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-electricBlue/25 hover:bg-electricBlue/40 text-cyanNeon hover:text-white border border-cyanNeon/50 shadow-[0_0_12px_rgba(0,240,255,0.2)] transition cursor-pointer">
+            <i data-lucide="file-down" class="w-4 h-4"></i>
+            <span>下載 Excel 範本 (.xlsx)</span>
+          </button>
+        </div>
+
+        <!-- 檔案拖曳 / 選擇區 -->
+        <label id="import-dropzone" for="import-file-input"
+          class="block border-2 border-dashed border-neonGreen/40 hover:border-neonGreen bg-slate-950/70 hover:bg-neonGreen/5 rounded-2xl p-6 text-center cursor-pointer transition">
+          <input type="file" id="import-file-input" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleImportFileSelect(event)" />
+          <div class="w-12 h-12 rounded-xl bg-neonGreen/10 border border-neonGreen/30 flex items-center justify-center mx-auto text-neonGreen mb-3">
+            <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+          </div>
+          <div class="text-sm font-bold text-white" id="import-dropzone-title">
+            點擊選擇 <span class="text-neonGreen font-mono">Equipment.xlsx</span> 或拖曳試算表至此處
+          </div>
+          <p class="text-xs text-slate-400 mt-1">
+            系統將自動識別「設備編號、設備名稱、分類、規格、存放位置、狀態、借用人、歸還日」等中英文欄位並建立分類篩選
+          </p>
+        </label>
+
+        <!-- 解析設定與摘要列 (選取檔案後顯示) -->
+        <div id="import-controls-bar" class="hidden space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800">
+            <div>
+              <label class="block text-[11px] font-mono text-slate-400 mb-1">選擇工作表範圍 (SHEET SCOPE)</label>
+              <select id="import-sheet-select" onchange="parseSelectedSheetScope()"
+                class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 focus:border-neonGreen focus:outline-none text-xs text-white">
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-mono text-slate-400 mb-1">匯入資料處理模式 (IMPORT STRATEGY)</label>
+              <select id="import-mode-select" onchange="handleImportModeChange()"
+                class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 focus:border-neonGreen focus:outline-none text-xs text-white">
+                <option value="skip">保留現有資料，僅匯入新設備編號 (推薦)</option>
+                <option value="overwrite">以匯入檔案覆蓋更新相同編號的設備</option>
+                <option value="replace">⚠️ 匯入新清單並完整取代舊有全部資訊</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- 完整取代舊有資料警示橫幅 -->
+          <div id="import-replace-warning" class="hidden p-3.5 rounded-xl bg-alertRed/10 border border-alertRed/45 flex items-start gap-2.5 text-xs">
+            <i data-lucide="alert-triangle" class="w-4 h-4 text-alertRed shrink-0 mt-0.5"></i>
+            <div class="space-y-0.5">
+              <div class="font-bold text-alertRed">完整取代模式已啟用（舊有設備資訊將被全數覆寫）</div>
+              <p id="import-replace-warning-text" class="text-slate-300 leading-relaxed">
+                確認匯入後，現有的設備清冊將全數移除，並完全替換為本次匯入的新清單（系統異動稽核日誌仍會保留）。
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 解析錯誤提示 -->
+        <div id="import-error-msg" class="hidden text-xs text-alertRed bg-alertRed/10 border border-alertRed/30 rounded-xl p-3"></div>
+
+        <!-- 預覽表格區塊 -->
+        <div id="import-preview-section" class="hidden space-y-2.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2 text-xs">
+              <span class="font-bold text-white">解析結果預覽：</span>
+              <span id="import-preview-stats" class="font-mono text-neonGreen"></span>
+            </div>
+            <span class="text-[11px] font-mono text-slate-400">若原表無編號將自動生成 EQ-XXXX</span>
+          </div>
+
+          <div class="rounded-xl border border-slate-800 overflow-hidden bg-slate-950/80">
+            <div class="overflow-x-auto max-h-64">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead class="bg-slate-900 text-[11px] font-mono text-cyanNeon sticky top-0">
+                  <tr>
+                    <th class="py-2.5 px-3">設備編號</th>
+                    <th class="py-2.5 px-3">設備名稱</th>
+                    <th class="py-2.5 px-3">分類</th>
+                    <th class="py-2.5 px-3">規格描述</th>
+                    <th class="py-2.5 px-3">存放位置</th>
+                    <th class="py-2.5 px-3">狀態 / 借用人</th>
+                  </tr>
+                </thead>
+                <tbody id="import-preview-tbody" class="divide-y divide-slate-800/70"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 底部操作按鈕 -->
+      <div class="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between gap-3 shrink-0">
+        <span class="text-[11px] font-mono text-slate-400 hidden sm:inline">
+          支援自動解析多個分頁與 Excel 日期格式，寫入後全體裝置即時同步
+        </span>
+        <div class="flex items-center gap-2.5 ml-auto">
+          <button type="button" onclick="closeModal('import-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 transition cursor-pointer">
+            取消
+          </button>
+          <button type="button" id="confirm-import-btn" disabled onclick="confirmBatchImport()"
+            class="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold bg-neonGreen/20 hover:bg-neonGreen/30 disabled:opacity-40 disabled:cursor-not-allowed text-neonGreen border border-neonGreen/60 shadow-[0_0_15px_rgba(0,255,157,0.2)] transition cursor-pointer">
+            <i data-lucide="database" class="w-4 h-4"></i>
+            <span id="confirm-import-btn-text">確認批次匯入</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. 權限身分切換與管理員驗證視窗 (Role & Admin Auth Modal) -->
+  <div id="auth-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="glass-panel hud-frame accent-amber rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-amberGlow/30">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-amberGlow/15 border border-amberGlow/40 flex items-center justify-center text-amberGlow">
+            <i data-lucide="shield-check" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-lg text-white">系統權限與身分控制台</h3>
+            <p class="text-[11px] font-mono text-amberGlow">ACCESS CONTROL // GUEST & ADMIN</p>
+          </div>
+        </div>
+        <button onclick="closeModal('auth-modal')" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- 權限說明對照卡 -->
+      <div class="mt-4 grid grid-cols-2 gap-2.5 text-xs">
+        <div class="p-3 rounded-xl bg-slate-950/80 border border-cyanNeon/25 space-y-1">
+          <div class="font-bold text-cyanNeon flex items-center gap-1.5">
+            <i data-lucide="user" class="w-3.5 h-3.5"></i> 訪客模式 (Guest)
+          </div>
+          <p class="text-[11px] text-slate-400 leading-relaxed">
+            可瀏覽設備狀態、登記借用、辦理歸還、異常報修與匯出報表。
+          </p>
+        </div>
+        <div class="p-3 rounded-xl bg-slate-950/80 border border-amberGlow/30 space-y-1">
+          <div class="font-bold text-amberGlow flex items-center gap-1.5">
+            <i data-lucide="shield" class="w-3.5 h-3.5"></i> 管理員 (Admin)
+          </div>
+          <p class="text-[11px] text-slate-400 leading-relaxed">
+            僅解鎖本機分頁；具備新增設備、Excel 匯入、完修驗收、刪除與一鍵清除權限。
+          </p>
+        </div>
+      </div>
+
+      <!-- 視圖 A：目前為訪客模式 -> 輸入通行碼解鎖管理員 -->
+      <form id="admin-login-view" onsubmit="submitAdminLogin(event)" class="mt-4 space-y-3.5">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-xs font-medium text-slate-300">管理員通行碼 (Admin Passcode)</label>
+            <button type="button" onclick="fillDefaultPasscode()" class="text-[11px] font-mono text-cyanNeon hover:underline cursor-pointer">
+              預設通行碼：8888 (點擊填入)
+            </button>
+          </div>
+          <input type="password" id="admin-password-input" required placeholder="請輸入管理員通行碼..."
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-amberGlow focus:outline-none text-sm font-mono text-white tracking-widest" />
+        </div>
+
+        <div id="auth-error-msg" class="hidden text-xs text-alertRed bg-alertRed/10 border border-alertRed/30 rounded-lg px-3 py-2"></div>
+
+        <div class="pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5">
+          <button type="button" onclick="closeModal('auth-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white bg-slate-800/80 transition cursor-pointer">
+            維持訪客模式
+          </button>
+          <button type="submit" class="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold bg-amberGlow/20 hover:bg-amberGlow/30 text-amberGlow border border-amberGlow/60 shadow-[0_0_15px_rgba(255,184,0,0.25)] transition cursor-pointer">
+            <i data-lucide="unlock" class="w-4 h-4"></i>
+            <span>驗證並切換管理員</span>
+          </button>
+        </div>
+      </form>
+
+      <!-- 視圖 B：目前為管理員模式 -> 修改雲端通行碼或登出為訪客 -->
+      <div id="admin-active-view" class="hidden mt-4 space-y-4">
+        <div class="p-3 rounded-xl bg-amberGlow/10 border border-amberGlow/40 flex items-center justify-between">
+          <div class="flex items-center gap-2 text-xs text-amberGlow font-semibold">
+            <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+            <span>目前處於「管理員完全控制模式」（僅限本分頁）</span>
+          </div>
+          <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-amberGlow/20 text-amberGlow">UNLOCKED</span>
+        </div>
+
+        <form onsubmit="submitChangePasscode(event)" class="space-y-2.5 pt-2 border-t border-slate-800">
+          <label class="block text-xs font-medium text-slate-300">變更共用管理員通行碼（至少 4 碼，全系統即時生效）</label>
+          <div class="flex gap-2">
+            <input type="password" id="new-admin-password" minlength="4" required placeholder="輸入新通行碼..."
+              class="flex-1 px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-cyanNeon focus:outline-none text-sm font-mono text-white" />
+            <button type="submit" class="btn-cyber-primary px-3.5 py-2 rounded-xl text-xs font-semibold cursor-pointer shrink-0">
+              同步更新密碼
+            </button>
+          </div>
+        </form>
+
+        <div class="pt-3 border-t border-slate-800 flex items-center justify-between gap-2.5">
+          <button type="button" onclick="closeModal('auth-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white bg-slate-800/80 transition cursor-pointer">
+            關閉視窗
+          </button>
+          <button type="button" onclick="switchToGuestMode()" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 hover:bg-alertRed/20 text-slate-200 hover:text-alertRed border border-slate-600 hover:border-alertRed/50 transition cursor-pointer">
+            <i data-lucide="log-out" class="w-4 h-4"></i>
+            <span>鎖定並切換回訪客模式</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. 管理員一鍵清除資料確認視窗 (Clear All Data Modal) -->
+  <div id="clear-all-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
+    <div class="glass-panel hud-frame accent-red rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+      <div class="flex items-center justify-between pb-3 border-b border-alertRed/30">
+        <div class="flex items-center gap-3 text-alertRed">
+          <div class="w-10 h-10 rounded-xl bg-alertRed/15 border border-alertRed/40 flex items-center justify-center shrink-0">
+            <i data-lucide="alert-octagon" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-lg text-white">管理員一鍵清除確認</h3>
+            <p class="text-[11px] font-mono text-alertRed">PURGE ALL EQUIPMENT RECORDS</p>
+          </div>
+        </div>
+        <button onclick="closeModal('clear-all-modal')" class="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 p-3.5 rounded-xl bg-alertRed/10 border border-alertRed/35 space-y-1.5">
+        <div class="text-xs font-bold text-alertRed flex items-center gap-1.5">
+          <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+          <span>即將清空資料庫內全部設備資產資料</span>
+        </div>
+        <p id="clear-all-summary-text" class="text-xs text-slate-300 leading-relaxed">
+          目前共有 0 筆在冊設備資料，執行一鍵清除後將無法復原，所有連線裝置的設備分類與借還狀態亦將同步重置。
+        </p>
+      </div>
+
+      <label class="mt-4 flex items-center gap-2.5 p-3 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-slate-700 cursor-pointer select-none">
+        <input type="checkbox" id="clear-logs-checkbox" class="w-4 h-4 rounded accent-rose-500 cursor-pointer" />
+        <span class="text-xs text-slate-300">同時清除所有「即時借還異動日誌」</span>
+      </label>
+
+      <div class="mt-5 pt-3 border-t border-slate-800 flex items-center justify-end gap-2.5">
+        <button type="button" onclick="closeModal('clear-all-modal')" class="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 transition cursor-pointer">
+          取消操作
+        </button>
+        <button type="button" id="clear-all-confirm-btn" onclick="confirmClearAllData()" class="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl text-sm font-semibold bg-alertRed hover:bg-rose-600 text-white shadow-[0_0_16px_rgba(255,42,95,0.45)] transition cursor-pointer">
+          <i data-lucide="eraser" class="w-4 h-4"></i>
+          <span>確認一鍵清除</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- Firebase v11 多人即時雲端同步引擎與核心邏輯 (ES Module)                  -->
+  <!-- ===================================================================== -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import {
+      getAuth,
+      signInAnonymously,
+      signInWithCustomToken
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      setDoc,
+      addDoc,
+      collection,
+      onSnapshot,
+      runTransaction,
+      writeBatch,
+      getDocs
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // -------------------------------------------------------------------------
+    // Firebase 執行期參考與應用環境識別
+    // -------------------------------------------------------------------------
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'csto-equipment-hub';
+    let app = null;
+    let auth = null;
+    let db = null;
+    let currentUser = null;
+    let equipmentsColRef = null;
+    let logsColRef = null;
+    let configDocRef = null;
+
+    // -------------------------------------------------------------------------
+    // 全域狀態管理（使用 sessionStorage 隔離單一瀏覽器分頁角色狀態）
+    // -------------------------------------------------------------------------
+    const SESSION_ROLE_KEY = 'csto_tab_role_v1';
+
+    function getSessionRole() {
+      try {
+        return sessionStorage.getItem(SESSION_ROLE_KEY) === 'admin' ? 'admin' : 'guest';
+      } catch (_) {
+        return 'guest';
+      }
+    }
+
+    function setSessionRole(role) {
+      const normalized = role === 'admin' ? 'admin' : 'guest';
+      currentRole = normalized;
+      try {
+        sessionStorage.setItem(SESSION_ROLE_KEY, normalized);
+      } catch (_) {
+        // 沙盒限制時僅保留於目前記憶體中
+      }
+    }
+
+    let equipments = [];
+    let activityLogs = [];
+    let currentRole = getSessionRole(); // 'guest' | 'admin' (僅限目前瀏覽器分頁)
+    let adminPasscode = '8888'; // 同步於雲端 csto_meta/config
+    let isInitialEquipmentsLoaded = false;
+    let isFallbackMode = false; // 若無雲端設定或權限受限則自動切換為單機備援運作模式
+
+    let currentFilter = {
+      search: '',
+      category: 'all',
+      status: 'all',
+      viewMode: 'grid' // 'grid' | 'table'
+    };
+
+    // Excel 匯入暫存狀態
+    let importState = {
+      workbook: null,
+      fileName: '',
+      parsedRecords: []
+    };
+
+    // -------------------------------------------------------------------------
+    // 安全 Firestore Document ID 編碼工具（支援斜線、點號與特殊符號）
+    // -------------------------------------------------------------------------
+    function toSafeDocId(eqId) {
+      const raw = String(eqId ?? '').trim();
+      if (!raw) {
+        return 'eq_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+      }
+      return 'eq_' + encodeURIComponent(raw).replace(/\./g, '%2E');
+    }
+
+    function resolveDocId(eqId) {
+      const found = equipments.find(item => item.id === eqId);
+      return found && found._docId ? found._docId : toSafeDocId(eqId);
+    }
+
+    function isCloudOperational() {
+      return !isFallbackMode && Boolean(db && currentUser && equipmentsColRef && logsColRef);
+    }
+
+    // -------------------------------------------------------------------------
+    // 雲端連線狀態指示器更新函式
+    // -------------------------------------------------------------------------
+    function setCloudSyncStatus(state, customText) {
+      const badge = document.getElementById('cloud-sync-badge');
+      const dot = document.getElementById('cloud-sync-dot');
+      const text = document.getElementById('cloud-sync-text');
+      const cornerDot = document.getElementById('header-corner-dot');
+      if (!badge || !dot || !text) return;
+
+      if (state === 'online') {
+        badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-mono bg-neonGreen/10 text-neonGreen border border-neonGreen/40 transition-all';
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-neonGreen animate-pulse';
+        text.textContent = customText || 'CLOUD SYNC // ONLINE';
+        if (cornerDot) {
+          cornerDot.className = 'absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-neonGreen shadow-[0_0_8px_#00FF9D]';
+        }
+      } else if (state === 'connecting') {
+        badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-mono bg-cyanNeon/15 text-cyanNeon border border-cyanNeon/40 transition-all';
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-cyanNeon animate-ping';
+        text.textContent = customText || 'CLOUD SYNC // CONNECTING';
+        if (cornerDot) {
+          cornerDot.className = 'absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyanNeon shadow-[0_0_8px_#00F0FF]';
+        }
+      } else {
+        badge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-mono bg-amberGlow/15 text-amberGlow border border-amberGlow/45 transition-all';
+        dot.className = 'w-1.5 h-1.5 rounded-full bg-amberGlow animate-pulse';
+        text.textContent = customText || 'LOCAL MODE // 單機即時運作';
+        if (cornerDot) {
+          cornerDot.className = 'absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amberGlow shadow-[0_0_8px_#FFB800]';
+        }
+      }
+    }
+
+    function activateFallbackMode(reasonText) {
+      isFallbackMode = true;
+      isInitialEquipmentsLoaded = true;
+      setCloudSyncStatus('local', reasonText || 'LOCAL MODE // 單機即時運作');
+      refreshAllUI();
+    }
+
+    // -------------------------------------------------------------------------
+    // 寫入稽核日誌輔助函式（雲端或單機模式皆支援）
+    // -------------------------------------------------------------------------
+    async function recordActivityLog(action, eqId, eqName, operator, detail) {
+      const logEntry = {
+        timestamp: getCurrentTimestamp(),
+        createdAt: Date.now(),
+        action,
+        eqId,
+        eqName,
+        operator,
+        detail
+      };
+
+      if (isCloudOperational()) {
+        try {
+          await addDoc(logsColRef, logEntry);
+          return;
+        } catch (err) {
+          console.error('寫入雲端日誌失敗:', err);
+        }
+      }
+
+      activityLogs.unshift({
+        id: 'LOG-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+        ...logEntry
+      });
+      if (activityLogs.length > 150) {
+        activityLogs = activityLogs.slice(0, 150);
+      }
+      renderLogs();
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    // -------------------------------------------------------------------------
+    // 分批執行 Firestore WriteBatch（每批上限 400 筆）
+    // -------------------------------------------------------------------------
+    async function commitOperationsInChunks(operations) {
+      const CHUNK_SIZE = 400;
+      for (let i = 0; i < operations.length; i += CHUNK_SIZE) {
+        const chunk = operations.slice(i, i + CHUNK_SIZE);
+        const batch = writeBatch(db);
+        chunk.forEach(op => {
+          if (op.type === 'set') {
+            batch.set(op.ref, op.data);
+          } else if (op.type === 'delete') {
+            batch.delete(op.ref);
+          }
+        });
+        await batch.commit();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 啟動 Firebase 認證與三大即時監聽器 (onSnapshot)
+    // -------------------------------------------------------------------------
+    async function initCloudSync() {
+      setCloudSyncStatus('connecting', 'CLOUD SYNC // CONNECTING');
+
+      const rawConfig = typeof __firebase_config !== 'undefined'
+        ? __firebase_config
+        : (typeof window !== 'undefined' ? window.__firebase_config : null);
+
+      if (!rawConfig) {
+        activateFallbackMode('LOCAL MODE // 單機即時運作');
+        return;
+      }
+
+      try {
+        const firebaseConfig = typeof rawConfig === 'string'
+          ? JSON.parse(rawConfig)
+          : rawConfig;
+
+        if (!firebaseConfig || !firebaseConfig.projectId) {
+          activateFallbackMode('LOCAL MODE // 單機即時運作');
+          return;
+        }
+
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+
+        // 嚴格遵守規則：先完成身分驗證再存取 Firestore
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          try {
+            const cred = await signInWithCustomToken(auth, __initial_auth_token);
+            currentUser = cred.user;
+          } catch (tokenErr) {
+            console.warn('自訂權杖驗證失敗，改用匿名登入:', tokenErr);
+            const anonCred = await signInAnonymously(auth);
+            currentUser = anonCred.user;
+          }
+        } else {
+          const anonCred = await signInAnonymously(auth);
+          currentUser = anonCred.user;
+        }
+
+        if (!currentUser) {
+          throw new Error('無法取得有效連線驗證身分');
+        }
+
+        // 嚴格合規之公開多人共用集合路徑 (/artifacts/{appId}/public/data/...)
+        equipmentsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'csto_equipments');
+        logsColRef = collection(db, 'artifacts', appId, 'public', 'data', 'csto_logs');
+        configDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'csto_meta', 'config');
+
+        // 1. 監聽系統共用設定文件 (csto_meta/config)
+        onSnapshot(
+          configDocRef,
+          async (docSnap) => {
+            if (!docSnap.exists()) {
+              try {
+                await setDoc(configDocRef, {
+                  adminPasscode: '8888',
+                  createdAt: Date.now(),
+                  updatedAt: Date.now()
+                }, { merge: true });
+                adminPasscode = '8888';
+              } catch (initErr) {
+                console.warn('初始化雲端設定略過:', initErr);
+              }
+            } else {
+              const data = docSnap.data();
+              if (data && typeof data.adminPasscode === 'string' && data.adminPasscode.length >= 4) {
+                adminPasscode = data.adminPasscode;
+              }
+            }
+          },
+          (error) => {
+            console.warn('監聽系統設定錯誤:', error);
+          }
+        );
+
+        // 2. 監聽雲端設備集合 (csto_equipments)
+        onSnapshot(
+          equipmentsColRef,
+          (snapshot) => {
+            const list = [];
+            snapshot.forEach((docItem) => {
+              const data = docItem.data() || {};
+              let decodedId = data.id;
+              if (!decodedId) {
+                try {
+                  decodedId = decodeURIComponent(docItem.id.replace(/^eq_/, ''));
+                } catch (_) {
+                  decodedId = docItem.id;
+                }
+              }
+
+              list.push({
+                _docId: docItem.id,
+                id: decodedId,
+                name: data.name || '',
+                category: data.category || '未分類',
+                specs: data.specs || '',
+                location: data.location || '',
+                status: data.status || 'available',
+                borrower: data.borrower || '',
+                dept: data.dept || '',
+                contact: data.contact || '',
+                borrowDate: data.borrowDate || '',
+                dueDate: data.dueDate || '',
+                purpose: data.purpose || '',
+                maintNote: data.maintNote || '',
+                createdAt: typeof data.createdAt === 'number' ? data.createdAt : 0,
+                updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : 0
+              });
+            });
+
+            // 於記憶體內依建立時間降冪排序
+            list.sort((a, b) => {
+              if (b.createdAt !== a.createdAt) return b.createdAt - a.createdAt;
+              return String(a.id).localeCompare(String(b.id), 'zh-Hant');
+            });
+
+            equipments = list;
+            isFallbackMode = false;
+            isInitialEquipmentsLoaded = true;
+            setCloudSyncStatus('online', 'CLOUD SYNC // ONLINE');
+            refreshAllUI();
+          },
+          (error) => {
+            console.error('監聽設備清單錯誤，切換至單機備援模式:', error);
+            activateFallbackMode('LOCAL MODE // 雲端權限受限');
+            showToast('雲端同步通道受限，已自動切換為單機即時運作模式。', 'amber');
+          }
+        );
+
+        // 3. 監聽雲端即時借還異動日誌集合 (csto_logs)
+        onSnapshot(
+          logsColRef,
+          (snapshot) => {
+            const logs = [];
+            snapshot.forEach((docItem) => {
+              const data = docItem.data() || {};
+              logs.push({
+                id: docItem.id,
+                timestamp: data.timestamp || '',
+                createdAt: typeof data.createdAt === 'number' ? data.createdAt : 0,
+                action: data.action || '系統',
+                eqId: data.eqId || '',
+                eqName: data.eqName || '',
+                operator: data.operator || '',
+                detail: data.detail || ''
+              });
+            });
+
+            logs.sort((a, b) => b.createdAt - a.createdAt);
+            activityLogs = logs.slice(0, 150);
+            renderLogs();
+            if (window.lucide) window.lucide.createIcons();
+          },
+          (error) => {
+            console.warn('監聽異動日誌錯誤:', error);
+          }
+        );
+      } catch (err) {
+        console.error('Firebase 初始化失敗，啟用單機模式:', err);
+        activateFallbackMode('LOCAL MODE // 單機即時運作');
+        showToast('已進入單機即時運作模式（無雲端連線設定）。', 'amber');
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 安全字串跳脫與日期時間輔助函式
+    // -------------------------------------------------------------------------
+    function escapeHTML(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function getCurrentTimestamp() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const hh = String(now.getHours()).padStart(2, '0');
+      const mm = String(now.getMinutes()).padStart(2, '0');
+      const ss = String(now.getSeconds()).padStart(2, '0');
+      return `${y}/${m}/${d} ${hh}:${mm}:${ss}`;
+    }
+
+    function getTodayDateString() {
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function addDaysToToday(days) {
+      const dt = new Date();
+      dt.setDate(dt.getDate() + days);
+      const y = dt.getFullYear();
+      const m = String(dt.getMonth() + 1).padStart(2, '0');
+      const d = String(dt.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function getOverdueDays(dueDateStr) {
+      if (!dueDateStr) return 0;
+      const parts = String(dueDateStr).trim().split(/[-/]/);
+      if (parts.length !== 3) return 0;
+      const due = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      if (isNaN(due.getTime())) return 0;
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const diffMs = today.getTime() - due.getTime();
+      return diffMs > 0 ? Math.floor(diffMs / (1000 * 60 * 60 * 24)) : 0;
+    }
+
+    function updateLiveClock() {
+      const clockEl = document.getElementById('live-clock');
+      if (clockEl) {
+        clockEl.textContent = getCurrentTimestamp();
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Toast 通知系統 (嚴格不使用 alert())
+    // -------------------------------------------------------------------------
+    function showToast(message, type = 'cyan') {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+
+      const styles = {
+        cyan: {
+          border: 'border-cyanNeon/60',
+          bg: 'bg-slate-900/95',
+          iconColor: 'text-cyanNeon',
+          icon: 'info'
+        },
+        green: {
+          border: 'border-neonGreen/60',
+          bg: 'bg-slate-900/95',
+          iconColor: 'text-neonGreen',
+          icon: 'check-circle-2'
+        },
+        amber: {
+          border: 'border-amberGlow/60',
+          bg: 'bg-slate-900/95',
+          iconColor: 'text-amberGlow',
+          icon: 'alert-circle'
+        },
+        error: {
+          border: 'border-alertRed/70',
+          bg: 'bg-slate-950/95',
+          iconColor: 'text-alertRed',
+          icon: 'shield-alert'
+        }
+      };
+
+      const theme = styles[type] || styles.cyan;
+      const toastEl = document.createElement('div');
+      toastEl.className = `toast-enter pointer-events-auto glass-panel ${theme.bg} border ${theme.border} rounded-xl p-3.5 shadow-2xl flex items-start gap-3`;
+      toastEl.innerHTML = `
+        <i data-lucide="${theme.icon}" class="w-5 h-5 ${theme.iconColor} shrink-0 mt-0.5"></i>
+        <div class="text-xs text-slate-100 leading-relaxed flex-1">${escapeHTML(message)}</div>
+        <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white cursor-pointer">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      `;
+
+      container.appendChild(toastEl);
+      if (window.lucide) window.lucide.createIcons();
+
+      setTimeout(() => {
+        if (toastEl.parentElement) {
+          toastEl.style.opacity = '0';
+          toastEl.style.transform = 'translateX(20px)';
+          toastEl.style.transition = 'all 0.25s ease';
+          setTimeout(() => toastEl.remove(), 260);
+        }
+      }, 4200);
+    }
+
+    // -------------------------------------------------------------------------
+    // 視窗開關控制 (Modal Helpers)
+    // -------------------------------------------------------------------------
+    function openModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (!modal) return;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function closeModal(modalId) {
+      const modal = document.getElementById(modalId);
+      if (!modal) return;
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    // -------------------------------------------------------------------------
+    // 權限控制核心函式 (Guest / Admin RBAC - 單分頁 sessionStorage 隔離)
+    // -------------------------------------------------------------------------
+    function isAdmin() {
+      return currentRole === 'admin';
+    }
+
+    function requireAdmin(actionLabel) {
+      if (isAdmin()) return true;
+      showToast(`權限不足：【${actionLabel}】僅限管理員操作，請先驗證管理員通行碼。`, 'error');
+      openAuthModal();
+      return false;
+    }
+
+    function updatePermissionUI() {
+      const admin = isAdmin();
+      const roleBtn = document.getElementById('role-switcher-btn');
+      const roleDot = document.getElementById('role-indicator-dot');
+      const roleIconWrap = document.getElementById('role-icon-wrap');
+      const roleTitle = document.getElementById('role-badge-title');
+      const roleSub = document.getElementById('role-badge-sub');
+
+      const btnAdd = document.getElementById('btn-add-eq');
+      const btnImport = document.getElementById('btn-import-eq');
+      const btnClearAll = document.getElementById('btn-clear-all');
+      const emptyAdminActions = document.getElementById('empty-state-admin-actions');
+      const emptyGuestNotice = document.getElementById('empty-state-guest-notice');
+
+      if (admin) {
+        if (roleBtn) {
+          roleBtn.className = 'inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-amberGlow/15 hover:bg-amberGlow/25 border border-amberGlow/60 text-amberGlow shadow-[0_0_15px_rgba(255,184,0,0.2)] transition cursor-pointer';
+        }
+        if (roleDot) roleDot.className = 'w-2 h-2 rounded-full bg-amberGlow animate-pulse';
+        if (roleIconWrap) {
+          roleIconWrap.innerHTML = '<i data-lucide="shield-check" class="w-4 h-4 text-amberGlow"></i>';
+        }
+        if (roleTitle) roleTitle.textContent = '管理員模式';
+        if (roleSub) roleSub.textContent = 'ADMIN // 本分頁完全控制';
+
+        if (btnAdd) {
+          btnAdd.classList.remove('hidden');
+          btnAdd.classList.add('inline-flex');
+        }
+        if (btnImport) {
+          btnImport.classList.remove('hidden');
+          btnImport.classList.add('inline-flex');
+        }
+        if (btnClearAll) {
+          btnClearAll.classList.remove('hidden');
+          btnClearAll.classList.add('inline-flex');
+        }
+        if (emptyAdminActions) {
+          emptyAdminActions.classList.remove('hidden');
+          emptyAdminActions.classList.add('flex');
+        }
+        if (emptyGuestNotice) emptyGuestNotice.classList.add('hidden');
+      } else {
+        if (roleBtn) {
+          roleBtn.className = 'inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-900/90 hover:bg-slate-800 border border-slate-600/80 text-slate-200 transition cursor-pointer';
+        }
+        if (roleDot) roleDot.className = 'w-2 h-2 rounded-full bg-cyanNeon';
+        if (roleIconWrap) {
+          roleIconWrap.innerHTML = '<i data-lucide="shield" class="w-4 h-4 text-cyanNeon"></i>';
+        }
+        if (roleTitle) roleTitle.textContent = '訪客模式';
+        if (roleSub) roleSub.textContent = 'GUEST // 點擊解鎖管理';
+
+        if (btnAdd) {
+          btnAdd.classList.add('hidden');
+          btnAdd.classList.remove('inline-flex');
+        }
+        if (btnImport) {
+          btnImport.classList.add('hidden');
+          btnImport.classList.remove('inline-flex');
+        }
+        if (btnClearAll) {
+          btnClearAll.classList.add('hidden');
+          btnClearAll.classList.remove('inline-flex');
+        }
+        if (emptyAdminActions) {
+          emptyAdminActions.classList.add('hidden');
+          emptyAdminActions.classList.remove('flex');
+        }
+        if (emptyGuestNotice) emptyGuestNotice.classList.remove('hidden');
+      }
+
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function openAuthModal() {
+      const loginView = document.getElementById('admin-login-view');
+      const activeView = document.getElementById('admin-active-view');
+      const errBox = document.getElementById('auth-error-msg');
+      const passInput = document.getElementById('admin-password-input');
+      const newPassInput = document.getElementById('new-admin-password');
+
+      if (errBox) errBox.classList.add('hidden');
+      if (passInput) passInput.value = '';
+      if (newPassInput) newPassInput.value = '';
+
+      if (isAdmin()) {
+        loginView?.classList.add('hidden');
+        activeView?.classList.remove('hidden');
+      } else {
+        loginView?.classList.remove('hidden');
+        activeView?.classList.add('hidden');
+      }
+
+      openModal('auth-modal');
+      if (!isAdmin() && passInput) {
+        setTimeout(() => passInput.focus(), 60);
+      }
+    }
+
+    function fillDefaultPasscode() {
+      const passInput = document.getElementById('admin-password-input');
+      if (passInput) {
+        passInput.value = '8888';
+        passInput.focus();
+      }
+    }
+
+    async function submitAdminLogin(event) {
+      event.preventDefault();
+      const passInput = document.getElementById('admin-password-input');
+      const errBox = document.getElementById('auth-error-msg');
+      const entered = passInput ? passInput.value.trim() : '';
+
+      if (isCloudOperational() && configDocRef) {
+        try {
+          const snap = await getDoc(configDocRef);
+          if (snap.exists() && snap.data()?.adminPasscode) {
+            adminPasscode = snap.data().adminPasscode;
+          }
+        } catch (_) {
+          // 忽略讀取錯誤，使用已同步之記憶體值
+        }
+      }
+
+      if (entered === adminPasscode) {
+        setSessionRole('admin');
+        await recordActivityLog('權限', 'SYS-AUTH', '管理員權限解鎖', '管理員 (Admin)', '已驗證通行碼，於工作終端開啟管理員完全控制權限');
+        closeModal('auth-modal');
+        refreshAllUI();
+        showToast('驗證通過！已於本分頁切換至「管理員模式」，開放新增、匯入與資產管理權限。', 'amber');
+      } else {
+        if (errBox) {
+          errBox.textContent = '通行碼錯誤，請重新輸入（預設通行碼為 8888）。';
+          errBox.classList.remove('hidden');
+        }
+      }
+    }
+
+    async function submitChangePasscode(event) {
+      event.preventDefault();
+      if (!requireAdmin('變更管理員通行碼')) return;
+
+      const newPassInput = document.getElementById('new-admin-password');
+      const newPass = newPassInput ? newPassInput.value.trim() : '';
+      if (newPass.length < 4) {
+        showToast('新通行碼長度至少需 4 個字元。', 'error');
+        return;
+      }
+
+      try {
+        if (isCloudOperational() && configDocRef) {
+          await setDoc(configDocRef, {
+            adminPasscode: newPass,
+            updatedAt: Date.now()
+          }, { merge: true });
+        }
+        adminPasscode = newPass;
+        await recordActivityLog('權限', 'SYS-PASS', '管理員通行碼更新', '管理員 (Admin)', '已變更系統管理員驗證通行碼');
+        if (newPassInput) newPassInput.value = '';
+        showToast('管理員通行碼已成功更新！', 'green');
+      } catch (err) {
+        console.error('更新密碼失敗:', err);
+        showToast(`更新通行碼失敗：${err.message || '寫入異常'}`, 'error');
+      }
+    }
+
+    async function switchToGuestMode() {
+      setSessionRole('guest');
+      await recordActivityLog('權限', 'SYS-AUTH', '鎖定管理員權限', '訪客 (Guest)', '工作終端已手動鎖定管理權限，切換回訪客模式');
+      closeModal('auth-modal');
+      refreshAllUI();
+      showToast('已鎖定管理權限並切換回「訪客模式」。', 'cyan');
+    }
+
+    // -------------------------------------------------------------------------
+    // KPI 遙測數據、動態分類與篩選引擎
+    // -------------------------------------------------------------------------
+    function updateKPIs() {
+      const total = equipments.length;
+      const available = equipments.filter(e => e.status === 'available').length;
+      const borrowed = equipments.filter(e => e.status === 'borrowed').length;
+      const maintenance = equipments.filter(e => e.status === 'maintenance').length;
+      const overdueCount = equipments.filter(e => e.status === 'borrowed' && getOverdueDays(e.dueDate) > 0).length;
+
+      const rate = total > 0 ? Math.round((available / total) * 100) : 0;
+
+      document.getElementById('kpi-total').textContent = total;
+      document.getElementById('kpi-available').textContent = available;
+      document.getElementById('kpi-available-rate').textContent = `可用率 ${rate}%`;
+      document.getElementById('kpi-available-bar').style.width = `${rate}%`;
+      document.getElementById('kpi-borrowed').textContent = borrowed;
+      document.getElementById('kpi-maintenance').textContent = maintenance;
+
+      const overdueBadge = document.getElementById('kpi-overdue-badge');
+      if (overdueBadge) {
+        if (overdueCount > 0) {
+          overdueBadge.textContent = `含 ${overdueCount} 筆逾期`;
+          overdueBadge.classList.remove('hidden');
+        } else {
+          overdueBadge.classList.add('hidden');
+        }
+      }
+
+      ['all', 'available', 'borrowed', 'maintenance'].forEach(key => {
+        const card = document.getElementById(`kpi-card-${key}`);
+        if (!card) return;
+        if (currentFilter.status === key) {
+          card.classList.add('ring-2', 'ring-cyanNeon/60');
+        } else {
+          card.classList.remove('ring-2', 'ring-cyanNeon/60');
+        }
+      });
+    }
+
+    function renderDynamicCategories() {
+      const tabsContainer = document.getElementById('category-tabs');
+      const datalist = document.getElementById('category-datalist');
+      if (!tabsContainer) return;
+
+      const categories = Array.from(
+        new Set(
+          equipments
+            .map(eq => (eq.category || '').trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (currentFilter.category !== 'all' && !categories.includes(currentFilter.category)) {
+        currentFilter.category = 'all';
+      }
+
+      const allActive = currentFilter.category === 'all';
+      let html = `
+        <span class="text-xs font-mono text-slate-400 mr-1 shrink-0 flex items-center gap-1">
+          <i data-lucide="filter" class="w-3.5 h-3.5 text-cyanNeon"></i> 設備分類：
+        </span>
+        <button onclick="setCategoryFilter('all')" data-cat-btn="all"
+          class="cat-tab shrink-0 px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
+            allActive
+              ? 'bg-cyanNeon/20 text-cyanNeon border border-cyanNeon/50'
+              : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-700/80'
+          }">
+          全部 (${equipments.length})
+        </button>
+      `;
+
+      categories.forEach(cat => {
+        const count = equipments.filter(eq => (eq.category || '').trim() === cat).length;
+        const active = currentFilter.category === cat;
+        const safeCat = escapeHTML(cat);
+        html += `
+          <button onclick="setCategoryFilter(this.dataset.cat)" data-cat="${safeCat}"
+            class="cat-tab shrink-0 px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer ${
+              active
+                ? 'bg-cyanNeon/20 text-cyanNeon border border-cyanNeon/50'
+                : 'bg-slate-900/80 text-slate-400 hover:text-white border border-slate-700/80'
+            }">
+            ${safeCat} (${count})
+          </button>
+        `;
+      });
+
+      tabsContainer.innerHTML = html;
+
+      if (datalist) {
+        datalist.innerHTML = categories
+          .map(cat => `<option value="${escapeHTML(cat)}"></option>`)
+          .join('');
+      }
+    }
+
+    function getFilteredEquipments() {
+      const kw = currentFilter.search.trim().toLowerCase();
+      return equipments.filter(eq => {
+        if (currentFilter.status !== 'all' && eq.status !== currentFilter.status) {
+          return false;
+        }
+        if (currentFilter.category !== 'all' && (eq.category || '').trim() !== currentFilter.category) {
+          return false;
+        }
+        if (kw) {
+          const haystack = [
+            eq.id,
+            eq.name,
+            eq.category,
+            eq.specs,
+            eq.location,
+            eq.borrower,
+            eq.dept,
+            eq.purpose,
+            eq.maintNote
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          if (!haystack.includes(kw)) return false;
+        }
+        return true;
+      });
+    }
+
+    function filterByKPI(status) {
+      setStatusFilter(status);
+    }
+
+    function setStatusFilter(status) {
+      currentFilter.status = status;
+      document.querySelectorAll('.status-tab').forEach(btn => {
+        const btnStatus = btn.getAttribute('data-status-btn');
+        if (btnStatus === status) {
+          btn.className = 'status-tab px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer bg-cyanNeon/20 text-cyanNeon border border-cyanNeon/40';
+        } else {
+          btn.className = 'status-tab px-3 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer text-slate-400 hover:text-white border border-transparent';
+        }
+      });
+      refreshAllUI();
+    }
+
+    function setCategoryFilter(category) {
+      currentFilter.category = category || 'all';
+      refreshAllUI();
+    }
+
+    function handleSearchInput(val) {
+      currentFilter.search = val || '';
+      const clearBtn = document.getElementById('clear-search-btn');
+      if (clearBtn) {
+        if (currentFilter.search.length > 0) {
+          clearBtn.classList.remove('hidden');
+        } else {
+          clearBtn.classList.add('hidden');
+        }
+      }
+      renderEquipments();
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function clearSearch() {
+      currentFilter.search = '';
+      const input = document.getElementById('search-input');
+      if (input) input.value = '';
+      document.getElementById('clear-search-btn')?.classList.add('hidden');
+      renderEquipments();
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    function resetAllFilters() {
+      currentFilter.search = '';
+      currentFilter.category = 'all';
+      currentFilter.status = 'all';
+      const input = document.getElementById('search-input');
+      if (input) input.value = '';
+      document.getElementById('clear-search-btn')?.classList.add('hidden');
+      setStatusFilter('all');
+    }
+
+    function setViewMode(mode) {
+      currentFilter.viewMode = mode === 'table' ? 'table' : 'grid';
+      const gridBtn = document.getElementById('view-grid-btn');
+      const tableBtn = document.getElementById('view-table-btn');
+
+      if (currentFilter.viewMode === 'grid') {
+        gridBtn.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-electricBlue/25 text-cyanNeon border border-cyanNeon/40 transition cursor-pointer';
+        tableBtn.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white border border-transparent transition cursor-pointer';
+      } else {
+        tableBtn.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-electricBlue/25 text-cyanNeon border border-cyanNeon/40 transition cursor-pointer';
+        gridBtn.className = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white border border-transparent transition cursor-pointer';
+      }
+      renderEquipments();
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    // -------------------------------------------------------------------------
+    // 設備清單與日誌渲染引擎 (Grid View & Table View & Activity Logs)
+    // -------------------------------------------------------------------------
+    function getStatusMeta(eq) {
+      if (eq.status === 'available') {
+        return {
+          label: '可借用',
+          en: 'READY',
+          accentClass: 'accent-green',
+          badgeClass: 'bg-neonGreen/15 text-neonGreen border-neonGreen/40',
+          dotClass: 'bg-neonGreen'
+        };
+      }
+      if (eq.status === 'borrowed') {
+        const overdue = getOverdueDays(eq.dueDate);
+        if (overdue > 0) {
+          return {
+            label: `逾期 ${overdue} 天`,
+            en: 'OVERDUE',
+            accentClass: 'accent-red',
+            badgeClass: 'bg-alertRed/20 text-alertRed border-alertRed/50 animate-pulse',
+            dotClass: 'bg-alertRed'
+          };
+        }
+        return {
+          label: '借出中',
+          en: 'DEPLOYED',
+          accentClass: 'accent-amber',
+          badgeClass: 'bg-amberGlow/15 text-amberGlow border-amberGlow/40',
+          dotClass: 'bg-amberGlow'
+        };
+      }
+      return {
+        label: '維護中',
+        en: 'MAINT',
+        accentClass: 'accent-red',
+        badgeClass: 'bg-alertRed/15 text-alertRed border-alertRed/40',
+        dotClass: 'bg-alertRed'
+      };
+    }
+
+    function renderEquipments() {
+      const loadingState = document.getElementById('cloud-loading-state');
+      const gridView = document.getElementById('equipment-grid-view');
+      const tableView = document.getElementById('equipment-table-view');
+      const tableBody = document.getElementById('equipment-table-body');
+      const zeroEmpty = document.getElementById('zero-data-empty-state');
+      const filterEmpty = document.getElementById('empty-state');
+      const filteredCountEl = document.getElementById('filtered-count');
+      const totalCountLabelEl = document.getElementById('total-count-label');
+
+      if (!isInitialEquipmentsLoaded) {
+        loadingState?.classList.remove('hidden');
+        gridView.classList.add('hidden');
+        tableView.classList.add('hidden');
+        zeroEmpty.classList.add('hidden');
+        filterEmpty.classList.add('hidden');
+        return;
+      }
+
+      loadingState?.classList.add('hidden');
+
+      const filtered = getFilteredEquipments();
+      if (filteredCountEl) filteredCountEl.textContent = filtered.length;
+      if (totalCountLabelEl) totalCountLabelEl.textContent = equipments.length;
+
+      // 情況 1：資料庫完全為空
+      if (equipments.length === 0) {
+        gridView.classList.add('hidden');
+        gridView.classList.remove('grid');
+        tableView.classList.add('hidden');
+        filterEmpty.classList.add('hidden');
+        zeroEmpty.classList.remove('hidden');
+        return;
+      }
+
+      zeroEmpty.classList.add('hidden');
+
+      // 情況 2：有資料但篩選結果為 0
+      if (filtered.length === 0) {
+        gridView.classList.add('hidden');
+        gridView.classList.remove('grid');
+        tableView.classList.add('hidden');
+        filterEmpty.classList.remove('hidden');
+        return;
+      }
+
+      filterEmpty.classList.add('hidden');
+      const admin = isAdmin();
+
+      if (currentFilter.viewMode === 'grid') {
+        gridView.classList.remove('hidden');
+        gridView.classList.add('grid');
+        tableView.classList.add('hidden');
+
+        gridView.innerHTML = filtered.map(eq => {
+          const meta = getStatusMeta(eq);
+          const safeId = escapeHTML(eq.id);
+          const safeName = escapeHTML(eq.name);
+          const safeCat = escapeHTML(eq.category || '未分類');
+          const safeSpecs = escapeHTML(eq.specs || '無規格備註');
+          const safeLoc = escapeHTML(eq.location || '未指定位置');
+
+          let infoBlock = '';
+          if (eq.status === 'borrowed') {
+            infoBlock = `
+              <div class="mt-3 p-2.5 rounded-xl bg-amberGlow/10 border border-amberGlow/30 text-xs space-y-1">
+                <div class="flex items-center justify-between text-amberGlow font-semibold">
+                  <span class="flex items-center gap-1.5"><i data-lucide="user" class="w-3.5 h-3.5"></i> ${escapeHTML(eq.borrower || '未登記')}</span>
+                  <span class="text-[11px] font-mono text-slate-300">${escapeHTML(eq.dept || '')}</span>
+                </div>
+                <div class="text-[11px] text-slate-300 flex items-center justify-between font-mono">
+                  <span>借出：${escapeHTML(eq.borrowDate || '-')}</span>
+                  <span class="${getOverdueDays(eq.dueDate) > 0 ? 'text-alertRed font-bold' : 'text-cyanNeon'}">預計歸還：${escapeHTML(eq.dueDate || '-')}</span>
+                </div>
+                ${eq.purpose ? `<div class="text-[11px] text-slate-400 truncate" title="${escapeHTML(eq.purpose)}">用途：${escapeHTML(eq.purpose)}</div>` : ''}
+              </div>
+            `;
+          } else if (eq.status === 'maintenance') {
+            infoBlock = `
+              <div class="mt-3 p-2.5 rounded-xl bg-alertRed/10 border border-alertRed/30 text-xs space-y-1">
+                <div class="text-alertRed font-semibold flex items-center gap-1.5">
+                  <i data-lucide="wrench" class="w-3.5 h-3.5"></i> 設備檢修隔離中
+                </div>
+                <div class="text-[11px] text-slate-300 line-clamp-2">${escapeHTML(eq.maintNote || '工程團隊進行例行檢測與校準中')}</div>
+              </div>
+            `;
+          } else {
+            infoBlock = `
+              <div class="mt-3 p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 text-xs flex items-center justify-between">
+                <span class="text-slate-400 flex items-center gap-1.5"><i data-lucide="map-pin" class="w-3.5 h-3.5 text-cyanNeon"></i> ${safeLoc}</span>
+                <span class="text-[11px] font-mono text-neonGreen">STANDBY</span>
+              </div>
+            `;
+          }
+
+          // 操作按鈕群組（全部使用 data-eq-id 安全傳遞編號，避免特殊字元或引號衝突）
+          let actionBtns = '';
+          if (eq.status === 'available') {
+            actionBtns = `
+              <button data-eq-id="${safeId}" onclick="openBorrowModal(this.dataset.eqId)" class="flex-1 btn-cyber-primary inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold cursor-pointer">
+                <i data-lucide="file-signature" class="w-3.5 h-3.5"></i>
+                <span>登記借用</span>
+              </button>
+              <button data-eq-id="${safeId}" onclick="openMaintModal(this.dataset.eqId)" class="inline-flex items-center justify-center gap-1 px-2.5 py-2 rounded-xl text-xs font-medium bg-slate-800/90 hover:bg-alertRed/20 text-slate-300 hover:text-alertRed border border-slate-700 hover:border-alertRed/40 transition cursor-pointer" title="異常報修">
+                <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+              </button>
+            `;
+          } else if (eq.status === 'borrowed') {
+            actionBtns = `
+              <button data-eq-id="${safeId}" onclick="openReturnModal(this.dataset.eqId)" class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-amberGlow/20 hover:bg-amberGlow/30 text-amberGlow border border-amberGlow/50 transition cursor-pointer">
+                <i data-lucide="corner-down-left" class="w-3.5 h-3.5"></i>
+                <span>辦理歸還</span>
+              </button>
+              <button data-eq-id="${safeId}" onclick="openMaintModal(this.dataset.eqId)" class="inline-flex items-center justify-center gap-1 px-2.5 py-2 rounded-xl text-xs font-medium bg-slate-800/90 hover:bg-alertRed/20 text-slate-300 hover:text-alertRed border border-slate-700 hover:border-alertRed/40 transition cursor-pointer" title="異常報修">
+                <i data-lucide="wrench" class="w-3.5 h-3.5"></i>
+              </button>
+            `;
+          } else {
+            actionBtns = admin
+              ? `
+                <button data-eq-id="${safeId}" onclick="completeMaintenance(this.dataset.eqId)" class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-neonGreen/20 hover:bg-neonGreen/30 text-neonGreen border border-neonGreen/50 transition cursor-pointer">
+                  <i data-lucide="check-circle" class="w-3.5 h-3.5"></i>
+                  <span>完成維護驗收</span>
+                </button>
+              `
+              : `
+                <button onclick="requireAdmin('完成維護驗收')" class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium bg-slate-900/90 text-slate-400 border border-slate-700 cursor-pointer" title="需管理員權限方可驗收完修">
+                  <i data-lucide="lock" class="w-3.5 h-3.5 text-amberGlow"></i>
+                  <span>檢修中 (管理員驗收)</span>
+                </button>
+              `;
+          }
+
+          const deleteBtn = admin
+            ? `
+              <button data-eq-id="${safeId}" onclick="openDeleteModal(this.dataset.eqId)" class="inline-flex items-center justify-center p-2 rounded-xl text-slate-400 hover:text-alertRed bg-slate-900/80 hover:bg-alertRed/15 border border-slate-800 hover:border-alertRed/40 transition cursor-pointer" title="移除設備">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            `
+            : '';
+
+          return `
+            <article class="glass-panel hud-frame ${meta.accentClass} rounded-xl p-4 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-mono text-xs font-bold text-cyanNeon bg-cyanNeon/10 px-2.5 py-0.5 rounded-md border border-cyanNeon/30">
+                    ${safeId}
+                  </span>
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${meta.badgeClass}">
+                    <span class="w-1.5 h-1.5 rounded-full ${meta.dotClass}"></span>
+                    ${meta.label}
+                  </span>
+                </div>
+
+                <h3 class="text-base font-bold text-white mt-3 leading-snug line-clamp-2" title="${safeName}">
+                  ${safeName}
+                </h3>
+
+                <div class="mt-1.5 flex items-center gap-2 text-[11px] text-slate-400">
+                  <span class="px-2 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/80">${safeCat}</span>
+                  ${eq.status !== 'available' ? `<span class="truncate text-slate-400"><i data-lucide="map-pin" class="w-3 h-3 inline text-cyanNeon"></i> ${safeLoc}</span>` : ''}
+                </div>
+
+                <p class="text-xs text-slate-400 mt-2.5 line-clamp-2 leading-relaxed" title="${safeSpecs}">
+                  ${safeSpecs}
+                </p>
+
+                ${infoBlock}
+              </div>
+
+              <div class="mt-4 pt-3 border-t border-slate-800/80 flex items-center gap-2">
+                ${actionBtns}
+                ${deleteBtn}
+              </div>
+            </article>
+          `;
+        }).join('');
+      } else {
+        gridView.classList.add('hidden');
+        gridView.classList.remove('grid');
+        tableView.classList.remove('hidden');
+
+        tableBody.innerHTML = filtered.map(eq => {
+          const meta = getStatusMeta(eq);
+          const safeId = escapeHTML(eq.id);
+          const safeName = escapeHTML(eq.name);
+          const safeCat = escapeHTML(eq.category || '未分類');
+          const safeSpecs = escapeHTML(eq.specs || '-');
+          const safeLoc = escapeHTML(eq.location || '-');
+
+          let borrowInfoCell = '<span class="text-xs text-slate-500 font-mono">-- 待命中 --</span>';
+          if (eq.status === 'borrowed') {
+            borrowInfoCell = `
+              <div class="text-xs space-y-0.5">
+                <div class="font-semibold text-amberGlow">${escapeHTML(eq.borrower || '-')} <span class="text-slate-400 font-normal">(${escapeHTML(eq.dept || '-')})</span></div>
+                <div class="font-mono text-[11px] ${getOverdueDays(eq.dueDate) > 0 ? 'text-alertRed font-bold' : 'text-slate-400'}">
+                  歸還日：${escapeHTML(eq.dueDate || '-')}
+                </div>
+              </div>
+            `;
+          } else if (eq.status === 'maintenance') {
+            borrowInfoCell = `<div class="text-xs text-alertRed line-clamp-2">${escapeHTML(eq.maintNote || '檢修維護中')}</div>`;
+          }
+
+          let rowActions = '';
+          if (eq.status === 'available') {
+            rowActions = `
+              <button data-eq-id="${safeId}" onclick="openBorrowModal(this.dataset.eqId)" class="btn-cyber-primary px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer">借用</button>
+              <button data-eq-id="${safeId}" onclick="openMaintModal(this.dataset.eqId)" class="px-2.5 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-alertRed/20 text-slate-300 hover:text-alertRed border border-slate-700 transition cursor-pointer">報修</button>
+            `;
+          } else if (eq.status === 'borrowed') {
+            rowActions = `
+              <button data-eq-id="${safeId}" onclick="openReturnModal(this.dataset.eqId)" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amberGlow/20 hover:bg-amberGlow/30 text-amberGlow border border-amberGlow/50 transition cursor-pointer">歸還</button>
+              <button data-eq-id="${safeId}" onclick="openMaintModal(this.dataset.eqId)" class="px-2.5 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-alertRed/20 text-slate-300 hover:text-alertRed border border-slate-700 transition cursor-pointer">報修</button>
+            `;
+          } else {
+            rowActions = admin
+              ? `<button data-eq-id="${safeId}" onclick="completeMaintenance(this.dataset.eqId)" class="px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-neonGreen/20 hover:bg-neonGreen/30 text-neonGreen border border-neonGreen/50 transition cursor-pointer">完修驗收</button>`
+              : `<button onclick="requireAdmin('完成維護驗收')" class="px-2.5 py-1.5 rounded-lg text-xs bg-slate-900 text-slate-400 border border-slate-700 cursor-pointer">檢修中</button>`;
+          }
+
+          if (admin) {
+            rowActions += `
+              <button data-eq-id="${safeId}" onclick="openDeleteModal(this.dataset.eqId)" class="p-1.5 rounded-lg text-slate-400 hover:text-alertRed hover:bg-alertRed/15 transition cursor-pointer" title="刪除">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+              </button>
+            `;
+          }
+
+          return `
+            <tr class="hover:bg-cyanNeon/5 transition">
+              <td class="py-3 px-4 font-mono text-xs font-bold text-cyanNeon whitespace-nowrap">${safeId}</td>
+              <td class="py-3 px-4">
+                <div class="font-semibold text-white text-sm">${safeName}</div>
+                <div class="text-xs text-slate-400 mt-0.5 line-clamp-1">${safeSpecs}</div>
+              </td>
+              <td class="py-3 px-4 text-xs">
+                <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">${safeCat}</span>
+                <div class="text-slate-400 mt-1">${safeLoc}</div>
+              </td>
+              <td class="py-3 px-4 whitespace-nowrap">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${meta.badgeClass}">
+                  <span class="w-1.5 h-1.5 rounded-full ${meta.dotClass}"></span>
+                  ${meta.label}
+                </span>
+              </td>
+              <td class="py-3 px-4">${borrowInfoCell}</td>
+              <td class="py-3 px-4 text-right whitespace-nowrap">
+                <div class="inline-flex items-center justify-end gap-1.5">${rowActions}</div>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    function renderLogs() {
+      const listEl = document.getElementById('activity-log-list');
+      const badgeEl = document.getElementById('log-count-badge');
+      if (!listEl) return;
+
+      if (badgeEl) {
+        badgeEl.textContent = `${activityLogs.length} 筆紀錄`;
+      }
+
+      if (activityLogs.length === 0) {
+        listEl.innerHTML = `
+          <div class="p-6 rounded-xl bg-slate-950/60 border border-slate-800/80 text-center">
+            <p class="text-xs font-mono text-slate-500">尚無異動紀錄 // 等待系統指令...</p>
+          </div>
+        `;
+        return;
+      }
+
+      const tagStyles = {
+        '借出': 'bg-amberGlow/15 text-amberGlow border-amberGlow/40',
+        '歸還': 'bg-neonGreen/15 text-neonGreen border-neonGreen/40',
+        '入庫': 'bg-cyanNeon/15 text-cyanNeon border-cyanNeon/40',
+        '匯入': 'bg-neonGreen/15 text-neonGreen border-neonGreen/40',
+        '取代': 'bg-amberGlow/15 text-amberGlow border-amberGlow/40',
+        '報修': 'bg-alertRed/15 text-alertRed border-alertRed/40',
+        '完修': 'bg-electricBlue/20 text-blue-300 border-electricBlue/40',
+        '刪除': 'bg-alertRed/15 text-alertRed border-alertRed/40',
+        '清空': 'bg-alertRed/15 text-alertRed border-alertRed/40',
+        '權限': 'bg-amberGlow/15 text-amberGlow border-amberGlow/40'
+      };
+
+      listEl.innerHTML = activityLogs.map(log => {
+        const badgeClass = tagStyles[log.action] || 'bg-cyanNeon/15 text-cyanNeon border-cyanNeon/40';
+        return `
+          <div class="p-3 rounded-xl bg-slate-950/75 border border-slate-800/90 hover:border-cyanNeon/30 transition space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeClass}">
+                ${escapeHTML(log.action)}
+              </span>
+              <span class="font-mono text-[10px] text-slate-500">${escapeHTML(log.timestamp)}</span>
+            </div>
+            <div class="text-xs font-semibold text-white">
+              <span class="font-mono text-cyanNeon">${escapeHTML(log.eqId)}</span> · ${escapeHTML(log.eqName)}
+            </div>
+            <p class="text-[11px] text-slate-400 leading-relaxed">${escapeHTML(log.detail)}</p>
+            <div class="text-[10px] font-mono text-slate-500">操作者：${escapeHTML(log.operator)}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function refreshAllUI() {
+      updatePermissionUI();
+      updateKPIs();
+      renderDynamicCategories();
+      renderEquipments();
+      renderLogs();
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    // -------------------------------------------------------------------------
+    // 1. 借用登記流程 (Firestore 原子交易 runTransaction + 單機備援)
+    // -------------------------------------------------------------------------
+    function openBorrowModal(eqId) {
+      const eq = equipments.find(item => item.id === eqId);
+      if (!eq || eq.status !== 'available') {
+        showToast('此設備目前無法辦理借用（狀態可能剛已更新）。', 'error');
+        return;
+      }
+
+      document.getElementById('borrow-form').reset();
+      document.getElementById('borrow-eq-id').value = eq.id;
+      document.getElementById('borrow-return-date').value = addDaysToToday(7);
+      document.getElementById('borrow-return-date').min = getTodayDateString();
+      document.getElementById('borrow-error-msg').classList.add('hidden');
+
+      document.getElementById('borrow-device-summary').innerHTML = `
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-xs font-bold text-cyanNeon">${escapeHTML(eq.id)}</span>
+          <span class="text-xs text-slate-400">${escapeHTML(eq.category || '未分類')}</span>
+        </div>
+        <div class="font-bold text-sm text-white mt-1">${escapeHTML(eq.name)}</div>
+        <div class="text-xs text-slate-400 mt-0.5">${escapeHTML(eq.specs || '')}</div>
+      `;
+
+      openModal('borrow-modal');
+    }
+
+    async function submitBorrowForm(event) {
+      event.preventDefault();
+
+      const eqId = document.getElementById('borrow-eq-id').value;
+      const borrower = document.getElementById('borrower-name').value.trim();
+      const dept = document.getElementById('borrower-dept').value.trim();
+      const contact = document.getElementById('borrower-contact').value.trim();
+      const dueDate = document.getElementById('borrow-return-date').value;
+      const purpose = document.getElementById('borrow-purpose').value.trim();
+      const errBox = document.getElementById('borrow-error-msg');
+      const submitBtn = document.getElementById('borrow-submit-btn');
+
+      if (!borrower || !dept || !contact || !dueDate || !purpose) {
+        errBox.textContent = '請完整填寫所有必填借用欄位。';
+        errBox.classList.remove('hidden');
+        return;
+      }
+
+      const targetEq = equipments.find(item => item.id === eqId);
+      if (!targetEq) {
+        errBox.textContent = '找不到對應設備資料。';
+        errBox.classList.remove('hidden');
+        return;
+      }
+
+      if (!isCloudOperational()) {
+        if (targetEq.status !== 'available') {
+          errBox.textContent = '此設備目前並非可借用狀態。';
+          errBox.classList.remove('hidden');
+          return;
+        }
+        targetEq.status = 'borrowed';
+        targetEq.borrower = borrower;
+        targetEq.dept = dept;
+        targetEq.contact = contact;
+        targetEq.borrowDate = getTodayDateString();
+        targetEq.dueDate = dueDate;
+        targetEq.purpose = purpose;
+        targetEq.updatedAt = Date.now();
+        await recordActivityLog('借出', targetEq.id, targetEq.name, `${borrower} (${dept})`, `用途：${purpose}｜預計歸還日：${dueDate}`);
+        closeModal('borrow-modal');
+        refreshAllUI();
+        showToast(`已核准借出【${targetEq.name}】給 ${borrower}！`, 'amber');
+        return;
+      }
+
+      const docId = resolveDocId(eqId);
+      const eqRef = doc(equipmentsColRef, docId);
+      const logRef = doc(logsColRef);
+
+      submitBtn.disabled = true;
+      try {
+        let eqNameForToast = targetEq.name || eqId;
+
+        await runTransaction(db, async (transaction) => {
+          // 嚴格規則：所有讀取必須排在所有寫入之前
+          const eqSnap = await transaction.get(eqRef);
+          if (!eqSnap.exists()) {
+            throw new Error('該設備已不存在於雲端資料庫中。');
+          }
+          const latestData = eqSnap.data();
+          if (latestData.status !== 'available') {
+            const statusText = latestData.status === 'borrowed'
+              ? `借出中（由 ${latestData.borrower || '其他人員'} 借用）`
+              : '維護檢修中';
+            throw new Error(`借用衝突：此設備剛已變更為「${statusText}」，無法重複借出！`);
+          }
+
+          eqNameForToast = latestData.name || eqId;
+          const nowTs = Date.now();
+
+          transaction.update(eqRef, {
+            status: 'borrowed',
+            borrower,
+            dept,
+            contact,
+            borrowDate: getTodayDateString(),
+            dueDate,
+            purpose,
+            updatedAt: nowTs
+          });
+
+          transaction.set(logRef, {
+            timestamp: getCurrentTimestamp(),
+            createdAt: nowTs,
+            action: '借出',
+            eqId: latestData.id || eqId,
+            eqName: eqNameForToast,
+            operator: `${borrower} (${dept})`,
+            detail: `用途：${purpose}｜預計歸還日：${dueDate}`
+          });
+        });
+
+        closeModal('borrow-modal');
+        showToast(`已核准借出【${eqNameForToast}】給 ${borrower}，全體裝置已即時同步！`, 'amber');
+      } catch (err) {
+        console.error('借用交易失敗:', err);
+        errBox.textContent = err.message || '雲端寫入失敗，請稍後再試。';
+        errBox.classList.remove('hidden');
+        showToast(err.message || '借用登記失敗', 'error');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 2. 設備歸還驗收流程 (Firestore 原子交易 runTransaction + 單機備援)
+    // -------------------------------------------------------------------------
+    function openReturnModal(eqId) {
+      const eq = equipments.find(item => item.id === eqId);
+      if (!eq || eq.status !== 'borrowed') {
+        showToast('此設備目前並非借出狀態（可能已完成歸還）。', 'error');
+        return;
+      }
+
+      document.getElementById('return-form').reset();
+      document.getElementById('return-eq-id').value = eq.id;
+
+      const overdue = getOverdueDays(eq.dueDate);
+      document.getElementById('return-device-summary').innerHTML = `
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-xs font-bold text-amberGlow">${escapeHTML(eq.id)}</span>
+          ${overdue > 0 ? `<span class="text-xs font-bold text-alertRed">已逾期 ${overdue} 天</span>` : `<span class="text-xs text-slate-400">應還日：${escapeHTML(eq.dueDate || '-')}</span>`}
+        </div>
+        <div class="font-bold text-sm text-white mt-1">${escapeHTML(eq.name)}</div>
+        <div class="text-xs text-slate-300 mt-1">借用人：${escapeHTML(eq.borrower || '-')} (${escapeHTML(eq.dept || '-')})</div>
+      `;
+
+      openModal('return-modal');
+    }
+
+    async function submitReturnForm(event) {
+      event.preventDefault();
+
+      const eqId = document.getElementById('return-eq-id').value;
+      const condition = document.querySelector('input[name="return-condition"]:checked')?.value || 'normal';
+      const note = document.getElementById('return-note').value.trim();
+      const submitBtn = document.getElementById('return-submit-btn');
+
+      const targetEq = equipments.find(item => item.id === eqId);
+      if (!targetEq) return;
+
+      if (!isCloudOperational()) {
+        const prevBorrower = targetEq.borrower || '借用人';
+        const prevDept = targetEq.dept || '';
+        const operatorLabel = prevDept ? `${prevBorrower} (${prevDept})` : prevBorrower;
+        targetEq.borrower = '';
+        targetEq.dept = '';
+        targetEq.contact = '';
+        targetEq.borrowDate = '';
+        targetEq.dueDate = '';
+        targetEq.purpose = '';
+        targetEq.updatedAt = Date.now();
+
+        if (condition === 'damaged') {
+          targetEq.status = 'maintenance';
+          targetEq.maintNote = note || '歸還點檢發現異常，轉入檢修程序';
+          await recordActivityLog('報修', targetEq.id, targetEq.name, operatorLabel, `歸還點檢異常轉入維護：${targetEq.maintNote}`);
+          showToast(`【${targetEq.name}】已辦理歸還並轉入維護檢修狀態。`, 'error');
+        } else {
+          targetEq.status = 'available';
+          targetEq.maintNote = '';
+          await recordActivityLog('歸還', targetEq.id, targetEq.name, operatorLabel, note ? `點檢正常入庫｜備註：${note}` : '設備點檢功能正常，已重新入庫待命');
+          showToast(`【${targetEq.name}】已完成歸還驗收，恢復為可借用狀態！`, 'green');
+        }
+        closeModal('return-modal');
+        refreshAllUI();
+        return;
+      }
+
+      const docId = resolveDocId(eqId);
+      const eqRef = doc(equipmentsColRef, docId);
+      const logRef = doc(logsColRef);
+
+      submitBtn.disabled = true;
+      try {
+        let eqNameForToast = targetEq.name || eqId;
+
+        await runTransaction(db, async (transaction) => {
+          const eqSnap = await transaction.get(eqRef);
+          if (!eqSnap.exists()) {
+            throw new Error('該設備已不存在於雲端資料庫中。');
+          }
+          const latestData = eqSnap.data();
+          if (latestData.status !== 'borrowed') {
+            throw new Error('此設備狀態已變更（可能已由其他人員完成歸還驗收）。');
+          }
+
+          eqNameForToast = latestData.name || eqId;
+          const prevBorrower = latestData.borrower || '借用人';
+          const prevDept = latestData.dept || '';
+          const operatorLabel = prevDept ? `${prevBorrower} (${prevDept})` : prevBorrower;
+          const nowTs = Date.now();
+
+          if (condition === 'damaged') {
+            const maintNote = note || '歸還點檢發現異常，轉入檢修程序';
+            transaction.update(eqRef, {
+              status: 'maintenance',
+              maintNote,
+              borrower: '',
+              dept: '',
+              contact: '',
+              borrowDate: '',
+              dueDate: '',
+              purpose: '',
+              updatedAt: nowTs
+            });
+
+            transaction.set(logRef, {
+              timestamp: getCurrentTimestamp(),
+              createdAt: nowTs,
+              action: '報修',
+              eqId: latestData.id || eqId,
+              eqName: eqNameForToast,
+              operator: operatorLabel,
+              detail: `歸還點檢異常轉入維護：${maintNote}`
+            });
+          } else {
+            transaction.update(eqRef, {
+              status: 'available',
+              maintNote: '',
+              borrower: '',
+              dept: '',
+              contact: '',
+              borrowDate: '',
+              dueDate: '',
+              purpose: '',
+              updatedAt: nowTs
+            });
+
+            transaction.set(logRef, {
+              timestamp: getCurrentTimestamp(),
+              createdAt: nowTs,
+              action: '歸還',
+              eqId: latestData.id || eqId,
+              eqName: eqNameForToast,
+              operator: operatorLabel,
+              detail: note ? `點檢正常入庫｜備註：${note}` : '設備點檢功能正常，已重新入庫待命'
+            });
+          }
+        });
+
+        closeModal('return-modal');
+        if (condition === 'damaged') {
+          showToast(`【${eqNameForToast}】已辦理歸還並轉入維護檢修狀態。`, 'error');
+        } else {
+          showToast(`【${eqNameForToast}】已完成歸還驗收，恢復為可借用狀態！`, 'green');
+        }
+      } catch (err) {
+        console.error('歸還交易失敗:', err);
+        showToast(err.message || '歸還驗收寫入失敗', 'error');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 3. 新增單筆設備入庫流程 (Add Equipment Flow - Admin Only)
+    // -------------------------------------------------------------------------
+    function generateRandomEqId() {
+      const existingIds = new Set(equipments.map(e => e.id.toUpperCase()));
+      let seq = equipments.length + 1001;
+      while (existingIds.has(`EQ-${seq}`)) {
+        seq++;
+      }
+      const input = document.getElementById('new-eq-id');
+      if (input) input.value = `EQ-${seq}`;
+    }
+
+    function openAddModal() {
+      if (!requireAdmin('新增設備入庫')) return;
+      document.getElementById('add-form').reset();
+      document.getElementById('add-error-msg').classList.add('hidden');
+      generateRandomEqId();
+      openModal('add-modal');
+    }
+
+    async function submitAddForm(event) {
+      event.preventDefault();
+      if (!requireAdmin('新增設備入庫')) return;
+
+      const id = document.getElementById('new-eq-id').value.trim().toUpperCase();
+      const category = document.getElementById('new-eq-category').value.trim();
+      const name = document.getElementById('new-eq-name').value.trim();
+      const specs = document.getElementById('new-eq-specs').value.trim();
+      const location = document.getElementById('new-eq-location').value.trim();
+      const errBox = document.getElementById('add-error-msg');
+      const submitBtn = document.getElementById('add-submit-btn');
+
+      if (!id || !category || !name || !specs || !location) {
+        errBox.textContent = '請完整填寫所有必填欄位。';
+        errBox.classList.remove('hidden');
+        return;
+      }
+
+      if (!isCloudOperational()) {
+        if (equipments.some(e => e.id.toUpperCase() === id)) {
+          errBox.textContent = `已存在設備編號 ${id}，請使用其他編號。`;
+          errBox.classList.remove('hidden');
+          return;
+        }
+        const nowTs = Date.now();
+        equipments.unshift({
+          _docId: toSafeDocId(id),
+          id,
+          name,
+          category,
+          specs,
+          location,
+          status: 'available',
+          borrower: '',
+          dept: '',
+          contact: '',
+          borrowDate: '',
+          dueDate: '',
+          purpose: '',
+          maintNote: '',
+          createdAt: nowTs,
+          updatedAt: nowTs
+        });
+        await recordActivityLog('入庫', id, name, '管理員 (Admin)', `分類：${category}｜存放於：${location}`);
+        closeModal('add-modal');
+        refreshAllUI();
+        showToast(`已成功新增設備【${name}】(${id})！`, 'green');
+        return;
+      }
+
+      const safeDocId = toSafeDocId(id);
+      const eqRef = doc(equipmentsColRef, safeDocId);
+      const logRef = doc(logsColRef);
+
+      submitBtn.disabled = true;
+      try {
+        await runTransaction(db, async (transaction) => {
+          const existingSnap = await transaction.get(eqRef);
+          if (existingSnap.exists()) {
+            throw new Error(`雲端資料庫中已存在設備編號 ${id}，請使用其他編號。`);
+          }
+
+          const nowTs = Date.now();
+          transaction.set(eqRef, {
+            id,
+            name,
+            category,
+            specs,
+            location,
+            status: 'available',
+            borrower: '',
+            dept: '',
+            contact: '',
+            borrowDate: '',
+            dueDate: '',
+            purpose: '',
+            maintNote: '',
+            createdAt: nowTs,
+            updatedAt: nowTs
+          });
+
+          transaction.set(logRef, {
+            timestamp: getCurrentTimestamp(),
+            createdAt: nowTs,
+            action: '入庫',
+            eqId: id,
+            eqName: name,
+            operator: '管理員 (Admin)',
+            detail: `分類：${category}｜存放於：${location}`
+          });
+        });
+
+        closeModal('add-modal');
+        showToast(`已成功將設備【${name}】(${id}) 寫入雲端資料庫！`, 'green');
+      } catch (err) {
+        console.error('新增設備失敗:', err);
+        errBox.textContent = err.message || '寫入雲端資料庫失敗';
+        errBox.classList.remove('hidden');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. 設備異常報修與完修驗收流程 (Maintenance Flow)
+    // -------------------------------------------------------------------------
+    function openMaintModal(eqId) {
+      const eq = equipments.find(item => item.id === eqId);
+      if (!eq) return;
+
+      document.getElementById('maint-form').reset();
+      document.getElementById('maint-eq-id').value = eq.id;
+      if (eq.borrower) {
+        document.getElementById('maint-reporter').value = eq.borrower;
+      }
+
+      document.getElementById('maint-device-summary').innerHTML = `
+        <div class="font-mono text-xs font-bold text-alertRed">${escapeHTML(eq.id)}</div>
+        <div class="font-bold text-sm text-white mt-0.5">${escapeHTML(eq.name)}</div>
+        <div class="text-xs text-slate-400 mt-0.5">存放位置：${escapeHTML(eq.location || '-')}</div>
+      `;
+
+      openModal('maint-modal');
+    }
+
+    async function submitMaintForm(event) {
+      event.preventDefault();
+
+      const eqId = document.getElementById('maint-eq-id').value;
+      const reporter = document.getElementById('maint-reporter').value.trim();
+      const reason = document.getElementById('maint-reason').value.trim();
+      const submitBtn = document.getElementById('maint-submit-btn');
+
+      if (!reporter || !reason) return;
+
+      const targetEq = equipments.find(item => item.id === eqId);
+      if (!targetEq) return;
+
+      if (!isCloudOperational()) {
+        targetEq.status = 'maintenance';
+        targetEq.maintNote = `${reason} (通報人：${reporter})`;
+        targetEq.borrower = '';
+        targetEq.dept = '';
+        targetEq.contact = '';
+        targetEq.borrowDate = '';
+        targetEq.dueDate = '';
+        targetEq.purpose = '';
+        targetEq.updatedAt = Date.now();
+        await recordActivityLog('報修', targetEq.id, targetEq.name, reporter, `故障通報：${reason}`);
+        closeModal('maint-modal');
+        refreshAllUI();
+        showToast(`已將【${targetEq.name}】標記為維護中。`, 'error');
+        return;
+      }
+
+      const docId = resolveDocId(eqId);
+      const eqRef = doc(equipmentsColRef, docId);
+      const logRef = doc(logsColRef);
+
+      submitBtn.disabled = true;
+      try {
+        let eqNameForToast = targetEq.name || eqId;
+        await runTransaction(db, async (transaction) => {
+          const snap = await transaction.get(eqRef);
+          if (!snap.exists()) {
+            throw new Error('找不到該設備資料');
+          }
+          const latest = snap.data();
+          eqNameForToast = latest.name || eqId;
+          const nowTs = Date.now();
+
+          transaction.update(eqRef, {
+            status: 'maintenance',
+            maintNote: `${reason} (通報人：${reporter})`,
+            borrower: '',
+            dept: '',
+            contact: '',
+            borrowDate: '',
+            dueDate: '',
+            purpose: '',
+            updatedAt: nowTs
+          });
+
+          transaction.set(logRef, {
+            timestamp: getCurrentTimestamp(),
+            createdAt: nowTs,
+            action: '報修',
+            eqId: latest.id || eqId,
+            eqName: eqNameForToast,
+            operator: reporter,
+            detail: `故障通報：${reason}`
+          });
+        });
+
+        closeModal('maint-modal');
+        showToast(`已將【${eqNameForToast}】標記為維護中並同步至所有終端。`, 'error');
+      } catch (err) {
+        console.error('報修提交失敗:', err);
+        showToast(err.message || '報修送出失敗', 'error');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    async function completeMaintenance(eqId) {
+      if (!requireAdmin('完成維護驗收')) return;
+
+      const targetEq = equipments.find(item => item.id === eqId);
+      if (!targetEq) return;
+
+      if (!isCloudOperational()) {
+        targetEq.status = 'available';
+        targetEq.maintNote = '';
+        targetEq.updatedAt = Date.now();
+        await recordActivityLog('完修', targetEq.id, targetEq.name, '管理員 (Admin)', '完成檢修校準並驗收通過，恢復為可借用狀態');
+        refreshAllUI();
+        showToast(`【${targetEq.name}】已完成維護驗收，重新開放借用！`, 'green');
+        return;
+      }
+
+      const docId = resolveDocId(eqId);
+      const eqRef = doc(equipmentsColRef, docId);
+      const logRef = doc(logsColRef);
+
+      try {
+        let eqNameForToast = targetEq.name || eqId;
+        await runTransaction(db, async (transaction) => {
+          const snap = await transaction.get(eqRef);
+          if (!snap.exists()) {
+            throw new Error('找不到該設備資料');
+          }
+          const latest = snap.data();
+          eqNameForToast = latest.name || eqId;
+          const nowTs = Date.now();
+
+          transaction.update(eqRef, {
+            status: 'available',
+            maintNote: '',
+            updatedAt: nowTs
+          });
+
+          transaction.set(logRef, {
+            timestamp: getCurrentTimestamp(),
+            createdAt: nowTs,
+            action: '完修',
+            eqId: latest.id || eqId,
+            eqName: eqNameForToast,
+            operator: '管理員 (Admin)',
+            detail: '完成檢修校準並驗收通過，恢復為可借用狀態'
+          });
+        });
+
+        showToast(`【${eqNameForToast}】已完成維護驗收，重新開放借用！`, 'green');
+      } catch (err) {
+        console.error('完修驗收失敗:', err);
+        showToast(err.message || '完修驗收失敗', 'error');
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. 刪除單筆設備流程 (Delete Single Equipment Flow - Admin Only)
+    // -------------------------------------------------------------------------
+    function openDeleteModal(eqId) {
+      if (!requireAdmin('刪除設備資產')) return;
+      const eq = equipments.find(item => item.id === eqId);
+      if (!eq) return;
+
+      document.getElementById('delete-eq-id').value = eq.id;
+      document.getElementById('delete-device-summary').innerHTML = `
+        <div class="font-mono text-xs font-bold text-alertRed">${escapeHTML(eq.id)}</div>
+        <div class="font-bold text-sm text-white mt-0.5">${escapeHTML(eq.name)}</div>
+        <div class="text-xs text-slate-400 mt-0.5">${escapeHTML(eq.category || '未分類')} · ${escapeHTML(eq.location || '-')}</div>
+      `;
+
+      openModal('delete-eq-modal');
+    }
+
+    async function confirmDeleteEquipment() {
+      if (!requireAdmin('刪除設備資產')) return;
+
+      const eqId = document.getElementById('delete-eq-id').value;
+      const targetEq = equipments.find(item => item.id === eqId);
+      if (!targetEq) {
+        closeModal('delete-eq-modal');
+        return;
+      }
+
+      if (!isCloudOperational()) {
+        equipments = equipments.filter(item => item.id !== eqId);
+        await recordActivityLog('刪除', targetEq.id, targetEq.name, '管理員 (Admin)', '已自資產資料庫中註銷移除');
+        closeModal('delete-eq-modal');
+        refreshAllUI();
+        showToast(`已移除設備【${targetEq.name}】(${targetEq.id})。`, 'error');
+        return;
+      }
+
+      const confirmBtn = document.getElementById('delete-confirm-btn');
+      const docId = resolveDocId(eqId);
+      const eqRef = doc(equipmentsColRef, docId);
+      const logRef = doc(logsColRef);
+
+      confirmBtn.disabled = true;
+      try {
+        await runTransaction(db, async (transaction) => {
+          const snap = await transaction.get(eqRef);
+          if (snap.exists()) {
+            transaction.delete(eqRef);
+          }
+          transaction.set(logRef, {
+            timestamp: getCurrentTimestamp(),
+            createdAt: Date.now(),
+            action: '刪除',
+            eqId: targetEq.id,
+            eqName: targetEq.name,
+            operator: '管理員 (Admin)',
+            detail: '已自雲端資產資料庫中註銷移除'
+          });
+        });
+
+        closeModal('delete-eq-modal');
+        showToast(`已移除雲端設備【${targetEq.name}】(${targetEq.id})。`, 'error');
+      } catch (err) {
+        console.error('刪除設備失敗:', err);
+        showToast(err.message || '刪除設備失敗', 'error');
+      } finally {
+        confirmBtn.disabled = false;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. 管理員一鍵清除全部資料流程 (Clear All Data Flow)
+    // -------------------------------------------------------------------------
+    function openClearAllModal() {
+      if (!requireAdmin('一鍵清除資料')) return;
+
+      if (equipments.length === 0 && activityLogs.length === 0) {
+        showToast('目前設備資料庫與異動日誌皆已為空，無需清除。', 'cyan');
+        return;
+      }
+
+      const summaryEl = document.getElementById('clear-all-summary-text');
+      if (summaryEl) {
+        summaryEl.textContent = `目前共有 ${equipments.length} 筆在冊設備資料（含 ${activityLogs.length} 筆系統日誌），執行一鍵清除後將無法復原，所有設備分類與借還狀態亦將同步重置。`;
+      }
+
+      const clearLogsCheckbox = document.getElementById('clear-logs-checkbox');
+      if (clearLogsCheckbox) clearLogsCheckbox.checked = false;
+
+      openModal('clear-all-modal');
+    }
+
+    async function confirmClearAllData() {
+      if (!requireAdmin('一鍵清除資料')) return;
+
+      const confirmBtn = document.getElementById('clear-all-confirm-btn');
+      const shouldClearLogs = document.getElementById('clear-logs-checkbox')?.checked || false;
+
+      if (!isCloudOperational()) {
+        const oldEqCount = equipments.length;
+        equipments = [];
+        currentFilter.category = 'all';
+        currentFilter.status = 'all';
+        currentFilter.search = '';
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) searchInput.value = '';
+        document.getElementById('clear-search-btn')?.classList.add('hidden');
+
+        if (shouldClearLogs) {
+          activityLogs = [];
+        } else {
+          await recordActivityLog('清空', 'PURGE-ALL', '全庫設備資產清冊', '管理員 (Admin)', `管理員已執行一鍵清除，共清空 ${oldEqCount} 筆設備資產資料`);
+        }
+        closeModal('clear-all-modal');
+        refreshAllUI();
+        showToast(`已執行一鍵清除，成功清空全部 ${oldEqCount} 筆設備資產資料！`, 'error');
+        return;
+      }
+
+      confirmBtn.disabled = true;
+      try {
+        const eqSnap = await getDocs(equipmentsColRef);
+        const oldEqCount = eqSnap.size;
+        const ops = [];
+
+        eqSnap.forEach((d) => {
+          ops.push({ type: 'delete', ref: d.ref });
+        });
+
+        if (shouldClearLogs) {
+          const logSnap = await getDocs(logsColRef);
+          logSnap.forEach((d) => {
+            ops.push({ type: 'delete', ref: d.ref });
+          });
+        } else {
+          const logRef = doc(logsColRef);
+          ops.push({
+            type: 'set',
+            ref: logRef,
+            data: {
+              timestamp: getCurrentTimestamp(),
+              createdAt: Date.now(),
+              action: '清空',
+              eqId: 'PURGE-ALL',
+              eqName: '全庫雲端設備資產清冊',
+              operator: '管理員 (Admin)',
+              detail: `管理員已執行一鍵清除，共清空雲端 ${oldEqCount} 筆設備資產資料`
+            }
+          });
+        }
+
+        await commitOperationsInChunks(ops);
+
+        currentFilter.category = 'all';
+        currentFilter.status = 'all';
+        currentFilter.search = '';
+        const searchInput = document.getElementById('search-input');
+        if (searchInput) searchInput.value = '';
+        document.getElementById('clear-search-btn')?.classList.add('hidden');
+
+        closeModal('clear-all-modal');
+        showToast(
+          shouldClearLogs
+            ? `已執行雲端一鍵清除，清空全部 ${oldEqCount} 筆設備與所有系統日誌！`
+            : `已執行雲端一鍵清除，成功清空全部 ${oldEqCount} 筆設備資產資料！`,
+          'error'
+        );
+      } catch (err) {
+        console.error('一鍵清除失敗:', err);
+        showToast(`雲端一鍵清除失敗：${err.message || '請稍後再試'}`, 'error');
+      } finally {
+        confirmBtn.disabled = false;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. Excel 範本下載與批次匯入解析精靈 (Excel / CSV Smart Importer)
+    // -------------------------------------------------------------------------
+    function downloadExcelTemplate() {
+      if (typeof XLSX === 'undefined') {
+        showToast('試算表元件尚未載入完成，請稍候再試。', 'error');
+        return;
+      }
+
+      const headers = [
+        '設備編號',
+        '設備名稱',
+        '設備分類',
+        '核心規格',
+        '存放位置',
+        '目前狀態',
+        '借用人姓名',
+        '所屬部門',
+        '聯絡方式',
+        '借用日期',
+        '預計歸還日期',
+        '借用用途或維護備註'
+      ];
+
+      const sampleRows = [
+        [
+          'EQ-2001',
+          'MacBook Pro 16 M3 Max 研發工作站',
+          '運算終端',
+          'M3 Max 16核 / 64GB RAM / 2TB SSD',
+          'A區-高速運算櫃 01',
+          '可借用',
+          '',
+          '',
+          '',
+          '',
+          '',
+          ''
+        ],
+        [
+          'EQ-2002',
+          'Keysight 高頻數位示波器',
+          '測試儀器',
+          '4GHz 頻寬 / 4通道 / 20GSa/s',
+          'B區-精密量測室 03',
+          '借出中',
+          '陳工程師',
+          '硬體研發部',
+          '#4512',
+          getTodayDateString(),
+          addDaysToToday(7),
+          '高速訊號完整性量測'
+        ],
+        [
+          'EQ-2003',
+          'DJI Matrice 350 RTK 無人機',
+          '無人載具與機器人',
+          'IP55防護 / 雙電池 / 含雷射雷達',
+          'C區-飛行載具庫 02',
+          '維護中',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '雲台水平儀定期校準'
+        ]
+      ];
+
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+      ws['!cols'] = [
+        { wch: 14 },
+        { wch: 32 },
+        { wch: 18 },
+        { wch: 34 },
+        { wch: 22 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 28 }
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '設備清單');
+      XLSX.writeFile(wb, 'CSTO_設備批次匯入範本.xlsx');
+      showToast('已下載標準 Excel 匯入範本（CSTO_設備批次匯入範本.xlsx）！', 'green');
+    }
+
+    function openImportModal() {
+      if (!requireAdmin('Excel / CSV 批次匯入')) return;
+
+      importState = {
+        workbook: null,
+        fileName: '',
+        parsedRecords: []
+      };
+
+      const fileInput = document.getElementById('import-file-input');
+      if (fileInput) fileInput.value = '';
+
+      document.getElementById('import-dropzone-title').innerHTML =
+        '點擊選擇 <span class="text-neonGreen font-mono">Equipment.xlsx</span> 或拖曳試算表至此處';
+      document.getElementById('import-controls-bar').classList.add('hidden');
+      document.getElementById('import-replace-warning').classList.add('hidden');
+      document.getElementById('import-error-msg').classList.add('hidden');
+      document.getElementById('import-preview-section').classList.add('hidden');
+      document.getElementById('confirm-import-btn').disabled = true;
+      document.getElementById('confirm-import-btn-text').textContent = '確認批次匯入';
+
+      openModal('import-modal');
+    }
+
+    function handleImportFileSelect(event) {
+      const file = event.target?.files?.[0];
+      if (!file) return;
+      processImportFile(file);
+    }
+
+    function processImportFile(file) {
+      const errBox = document.getElementById('import-error-msg');
+      errBox.classList.add('hidden');
+
+      if (typeof XLSX === 'undefined') {
+        errBox.textContent = '試算表解析模組尚未載入，請重新整理頁面後再試。';
+        errBox.classList.remove('hidden');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          let workbook;
+
+          if (file.name.toLowerCase().endsWith('.csv')) {
+            let text = '';
+            try {
+              text = new TextDecoder('utf-8', { fatal: true }).decode(data);
+            } catch (_) {
+              text = new TextDecoder('big5').decode(data);
+            }
+            workbook = XLSX.read(text, { type: 'string' });
+          } else {
+            workbook = XLSX.read(data, { type: 'array', cellDates: false });
+          }
+
+          if (!workbook || !workbook.SheetNames || workbook.SheetNames.length === 0) {
+            throw new Error('檔案中未偵測到任何工作表。');
+          }
+
+          importState.workbook = workbook;
+          importState.fileName = file.name;
+
+          document.getElementById('import-dropzone-title').innerHTML =
+            `已載入檔案：<span class="text-neonGreen font-mono">${escapeHTML(file.name)}</span>（點擊可重新選擇）`;
+
+          const sheetSelect = document.getElementById('import-sheet-select');
+          sheetSelect.innerHTML = '';
+
+          if (workbook.SheetNames.length > 1) {
+            const allOpt = document.createElement('option');
+            allOpt.value = '__ALL__';
+            allOpt.textContent = `全部工作表合併匯入 (共 ${workbook.SheetNames.length} 個工作表)`;
+            sheetSelect.appendChild(allOpt);
+          }
+
+          workbook.SheetNames.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            opt.textContent = `工作表：${name}`;
+            sheetSelect.appendChild(opt);
+          });
+
+          document.getElementById('import-controls-bar').classList.remove('hidden');
+          handleImportModeChange();
+          parseSelectedSheetScope();
+        } catch (err) {
+          console.error('解析檔案錯誤:', err);
+          errBox.textContent = `解析失敗：${err.message || '檔案格式不支援或內容損毀'}`;
+          errBox.classList.remove('hidden');
+          document.getElementById('import-preview-section').classList.add('hidden');
+          document.getElementById('confirm-import-btn').disabled = true;
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    function normalizeDateCell(val) {
+      if (val === null || val === undefined || val === '') return '';
+      if (typeof val === 'number' && val > 20000 && val < 80000) {
+        const utcDays = Math.floor(val - 25569);
+        const date = new Date(utcDays * 86400 * 1000);
+        if (!isNaN(date.getTime())) {
+          const y = date.getUTCFullYear();
+          const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+          const d = String(date.getUTCDate()).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        }
+      }
+      const str = String(val).trim();
+      const match = str.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+      if (match) {
+        return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+      }
+      return str;
+    }
+
+    function normalizeStatusCell(rawStatus, hasBorrower) {
+      const s = String(rawStatus || '').trim().toLowerCase();
+      if (!s) {
+        return hasBorrower ? 'borrowed' : 'available';
+      }
+      if (s.includes('借出') || s.includes('使用') || s.includes('borrow') || s.includes('deploy') || s.includes('in use') || s.includes('逾期')) {
+        return 'borrowed';
+      }
+      if (s.includes('維護') || s.includes('維修') || s.includes('異常') || s.includes('故障') || s.includes('報修') || s.includes('maint') || s.includes('repair')) {
+        return 'maintenance';
+      }
+      return 'available';
+    }
+
+    function mapHeaderColumn(headerText) {
+      const h = String(headerText || '').trim().toLowerCase().replace(/\s+/g, '');
+      if (!h) return null;
+
+      if (/^(設備編號|資產編號|財產編號|編號|序號|id|code|assetid|no\.?)$/.test(h)) return 'id';
+      if (/^(設備名稱|資產名稱|儀器名稱|名稱|品名|設備|equipment|name|device|item)$/.test(h)) return 'name';
+      if (/^(設備分類|資產分類|分類|類別|種類|群組|category|type|group)$/.test(h)) return 'category';
+      if (/^(核心規格|硬體規格|規格描述|規格|型號|規格型號|specs?|model|description)$/.test(h)) return 'specs';
+      if (/^(存放位置|放置位置|保管地點|位置|地點|櫃位|location|place|rack)$/.test(h)) return 'location';
+      if (/^(目前狀態|設備狀態|狀態|status|state)$/.test(h)) return 'status';
+      if (/^(借用人姓名|借用人|借用者|保管人|使用者|borrower|user)$/.test(h)) return 'borrower';
+      if (/^(所屬部門|部門|單位|dept|department)$/.test(h)) return 'dept';
+      if (/^(聯絡方式|聯絡電話|分機|信箱|電話|contact|phone|ext)$/.test(h)) return 'contact';
+      if (/^(借用日期|借出日期|領用日期|borrowdate|checkout)$/.test(h)) return 'borrowDate';
+      if (/^(預計歸還日期|歸還日期|應還日期|到期日|duedate|returndate)$/.test(h)) return 'dueDate';
+      if (/^(借用用途或維護備註|借用用途|用途|維護備註|備註|說明|purpose|note|remark)$/.test(h)) return 'note';
+
+      // 模糊包含比對
+      if (h.includes('編號') || h.includes('id')) return 'id';
+      if (h.includes('名稱') || h.includes('品名') || h.includes('name')) return 'name';
+      if (h.includes('分類') || h.includes('類別') || h.includes('category')) return 'category';
+      if (h.includes('規格') || h.includes('型號') || h.includes('spec')) return 'specs';
+      if (h.includes('位置') || h.includes('櫃位') || h.includes('location')) return 'location';
+      if (h.includes('狀態') || h.includes('status')) return 'status';
+      if (h.includes('借用人') || h.includes('borrower')) return 'borrower';
+      if (h.includes('部門') || h.includes('dept')) return 'dept';
+      if (h.includes('聯絡') || h.includes('分機') || h.includes('contact')) return 'contact';
+      if (h.includes('借用日') || h.includes('借出日')) return 'borrowDate';
+      if (h.includes('歸還') || h.includes('到期')) return 'dueDate';
+      if (h.includes('用途') || h.includes('備註') || h.includes('note')) return 'note';
+
+      return null;
+    }
+
+    function parseSheetRows(sheet, sheetName, isMultiSheet) {
+      const aoa = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+      if (!aoa || aoa.length === 0) return [];
+
+      let headerRowIdx = -1;
+      let bestMatchCount = 0;
+      let bestColMap = {};
+
+      for (let r = 0; r < Math.min(aoa.length, 10); r++) {
+        const row = aoa[r];
+        if (!Array.isArray(row)) continue;
+        const colMap = {};
+        let matches = 0;
+        row.forEach((cell, idx) => {
+          const field = mapHeaderColumn(cell);
+          if (field && !(field in colMap)) {
+            colMap[field] = idx;
+            matches++;
+          }
+        });
+        if (matches > bestMatchCount) {
+          bestMatchCount = matches;
+          headerRowIdx = r;
+          bestColMap = colMap;
+        }
+      }
+
+      if (headerRowIdx === -1 || bestMatchCount === 0) {
+        return [];
+      }
+
+      const genericSheetNames = ['sheet1', 'sheet2', 'sheet3', '工作表1', '工作表2', '設備清單', '設備清冊', '總表'];
+      const sheetFallbackCategory =
+        sheetName && (isMultiSheet || !genericSheetNames.includes(sheetName.trim().toLowerCase()))
+          ? sheetName.trim()
+          : '未分類設備';
+
+      const results = [];
+      for (let r = headerRowIdx + 1; r < aoa.length; r++) {
+        const row = aoa[r];
+        if (!Array.isArray(row)) continue;
+
+        const getVal = field => {
+          const colIdx = bestColMap[field];
+          return colIdx !== undefined && row[colIdx] !== undefined ? String(row[colIdx]).trim() : '';
+        };
+        const getRaw = field => {
+          const colIdx = bestColMap[field];
+          return colIdx !== undefined ? row[colIdx] : '';
+        };
+
+        const rawId = getVal('id').toUpperCase();
+        const name = getVal('name');
+        const category = getVal('category') || sheetFallbackCategory;
+        const specs = getVal('specs');
+        const location = getVal('location');
+        const borrower = getVal('borrower');
+        const dept = getVal('dept');
+        const contact = getVal('contact');
+        const borrowDate = normalizeDateCell(getRaw('borrowDate'));
+        const dueDate = normalizeDateCell(getRaw('dueDate'));
+        const note = getVal('note');
+
+        if (!name && !rawId) continue;
+
+        const status = normalizeStatusCell(getVal('status'), Boolean(borrower));
+
+        results.push({
+          id: rawId,
+          name: name || rawId,
+          category,
+          specs: specs || '標準出廠規格',
+          location: location || '待分配櫃位',
+          status,
+          borrower: status === 'borrowed' ? (borrower || '未登記借用人') : '',
+          dept: status === 'borrowed' ? dept : '',
+          contact: status === 'borrowed' ? contact : '',
+          borrowDate: status === 'borrowed' ? (borrowDate || getTodayDateString()) : '',
+          dueDate: status === 'borrowed' ? (dueDate || addDaysToToday(7)) : '',
+          purpose: status === 'borrowed' ? note : '',
+          maintNote: status === 'maintenance' ? (note || '匯入標記為維護檢修中') : ''
+        });
+      }
+
+      return results;
+    }
+
+    function assignAutoIdsToParsedRecords(records) {
+      const mode = document.getElementById('import-mode-select')?.value || 'skip';
+      const usedIds = new Set();
+
+      if (mode !== 'replace') {
+        equipments.forEach(eq => usedIds.add(eq.id.toUpperCase()));
+      }
+      records.forEach(rec => {
+        if (rec.id) usedIds.add(rec.id.toUpperCase());
+      });
+
+      let autoSeq = 1001;
+      return records.map(rec => {
+        if (rec.id) return { ...rec, id: rec.id.toUpperCase() };
+        while (usedIds.has(`EQ-${autoSeq}`)) {
+          autoSeq++;
+        }
+        const generatedId = `EQ-${autoSeq}`;
+        usedIds.add(generatedId);
+        autoSeq++;
+        return { ...rec, id: generatedId };
+      });
+    }
+
+    function parseSelectedSheetScope() {
+      if (!importState.workbook) return;
+      const scope = document.getElementById('import-sheet-select').value;
+      const errBox = document.getElementById('import-error-msg');
+      const previewSection = document.getElementById('import-preview-section');
+      const confirmBtn = document.getElementById('confirm-import-btn');
+
+      errBox.classList.add('hidden');
+      let rawRecords = [];
+
+      if (scope === '__ALL__') {
+        importState.workbook.SheetNames.forEach(sheetName => {
+          const sheet = importState.workbook.Sheets[sheetName];
+          rawRecords = rawRecords.concat(parseSheetRows(sheet, sheetName, true));
+        });
+      } else {
+        const sheet = importState.workbook.Sheets[scope];
+        rawRecords = parseSheetRows(sheet, scope, importState.workbook.SheetNames.length > 1);
+      }
+
+      if (rawRecords.length === 0) {
+        errBox.textContent = '無法在所選工作表中解析出有效的設備資料列，請確認表格包含「設備名稱」或「設備編號」標題欄位。';
+        errBox.classList.remove('hidden');
+        previewSection.classList.add('hidden');
+        confirmBtn.disabled = true;
+        importState.parsedRecords = [];
+        return;
+      }
+
+      const finalized = assignAutoIdsToParsedRecords(rawRecords);
+      importState.parsedRecords = finalized;
+
+      const uniqueCats = Array.from(new Set(finalized.map(r => r.category)));
+      document.getElementById('import-preview-stats').textContent =
+        `共解析 ${finalized.length} 筆設備，偵測到 ${uniqueCats.length} 個分類（${uniqueCats.join('、')}）`;
+
+      const tbody = document.getElementById('import-preview-tbody');
+      tbody.innerHTML = finalized.slice(0, 100).map(rec => {
+        const statusLabel =
+          rec.status === 'borrowed'
+            ? `<span class="text-amberGlow">借出中 (${escapeHTML(rec.borrower)})</span>`
+            : rec.status === 'maintenance'
+              ? `<span class="text-alertRed">維護中</span>`
+              : `<span class="text-neonGreen">可借用</span>`;
+
+        return `
+          <tr class="hover:bg-slate-900/70">
+            <td class="py-2 px-3 font-mono text-cyanNeon font-semibold whitespace-nowrap">${escapeHTML(rec.id)}</td>
+            <td class="py-2 px-3 text-white font-medium">${escapeHTML(rec.name)}</td>
+            <td class="py-2 px-3 text-slate-300 whitespace-nowrap">${escapeHTML(rec.category)}</td>
+            <td class="py-2 px-3 text-slate-400 max-w-[200px] truncate">${escapeHTML(rec.specs)}</td>
+            <td class="py-2 px-3 text-slate-300 whitespace-nowrap">${escapeHTML(rec.location)}</td>
+            <td class="py-2 px-3 whitespace-nowrap">${statusLabel}</td>
+          </tr>
+        `;
+      }).join('');
+
+      if (finalized.length > 100) {
+        tbody.innerHTML += `
+          <tr>
+            <td colspan="6" class="py-2.5 px-3 text-center text-[11px] font-mono text-slate-400 bg-slate-900/50">
+              ... 僅顯示前 100 筆預覽，確認後將匯入全部 ${finalized.length} 筆設備資料 ...
+            </td>
+          </tr>
+        `;
+      }
+
+      previewSection.classList.remove('hidden');
+      confirmBtn.disabled = false;
+    }
+
+    function handleImportModeChange() {
+      const mode = document.getElementById('import-mode-select')?.value || 'skip';
+      const warningBox = document.getElementById('import-replace-warning');
+      const warningText = document.getElementById('import-replace-warning-text');
+      const btnText = document.getElementById('confirm-import-btn-text');
+
+      if (mode === 'replace') {
+        warningBox?.classList.remove('hidden');
+        if (warningText) {
+          warningText.textContent = `確認匯入後，現有的 ${equipments.length} 筆設備清冊將全數移除，並完全替換為本次匯入的新清單（系統異動稽核日誌仍會保留）。`;
+        }
+        if (btnText) btnText.textContent = '確認取代舊清單並匯入';
+      } else {
+        warningBox?.classList.add('hidden');
+        if (btnText) btnText.textContent = '確認批次匯入';
+      }
+
+      if (importState.workbook) {
+        parseSelectedSheetScope();
+      }
+    }
+
+    async function confirmBatchImport() {
+      if (!requireAdmin('確認批次匯入')) return;
+      if (!importState.parsedRecords || importState.parsedRecords.length === 0) return;
+
+      const mode = document.getElementById('import-mode-select')?.value || 'skip';
+      const records = importState.parsedRecords;
+      const confirmBtn = document.getElementById('confirm-import-btn');
+      const baseTs = Date.now();
+
+      // 單機備援模式處理
+      if (!isCloudOperational()) {
+        if (mode === 'replace') {
+          const oldCount = equipments.length;
+          equipments = records.map((rec, idx) => ({
+            ...rec,
+            _docId: toSafeDocId(rec.id),
+            createdAt: baseTs - idx,
+            updatedAt: baseTs
+          }));
+          currentFilter.category = 'all';
+          currentFilter.status = 'all';
+          await recordActivityLog('取代', 'BATCH-REPLACE', importState.fileName || '試算表匯入', '管理員 (Admin)', `已匯入新清單並完整取代舊有 ${oldCount} 筆資料，目前共 ${equipments.length} 筆設備`);
+          closeModal('import-modal');
+          refreshAllUI();
+          showToast(`已完成完整取代匯入！共載入 ${equipments.length} 筆最新設備。`, 'amber');
+          return;
+        }
+
+        let addedCount = 0;
+        let updatedCount = 0;
+        let skippedCount = 0;
+        records.forEach((rec, idx) => {
+          const existingIdx = equipments.findIndex(e => e.id.toUpperCase() === rec.id.toUpperCase());
+          if (existingIdx !== -1) {
+            if (mode === 'overwrite') {
+              equipments[existingIdx] = { ...equipments[existingIdx], ...rec, updatedAt: baseTs };
+              updatedCount++;
+            } else {
+              skippedCount++;
+            }
+          } else {
+            equipments.unshift({ ...rec, _docId: toSafeDocId(rec.id), createdAt: baseTs - idx, updatedAt: baseTs });
+            addedCount++;
+          }
+        });
+        await recordActivityLog('匯入', 'BATCH-IMPORT', importState.fileName || '試算表匯入', '管理員 (Admin)', `新增 ${addedCount} 筆、更新 ${updatedCount} 筆、略過重複 ${skippedCount} 筆`);
+        closeModal('import-modal');
+        refreshAllUI();
+        showToast(`批次匯入完成！新增 ${addedCount} 筆${updatedCount > 0 ? `、更新 ${updatedCount} 筆` : ''}設備。`, 'green');
+        return;
+      }
+
+      confirmBtn.disabled = true;
+      try {
+        const ops = [];
+
+        if (mode === 'replace') {
+          const existingSnap = await getDocs(equipmentsColRef);
+          const oldCount = existingSnap.size;
+          const incomingDocIds = new Set(records.map(r => toSafeDocId(r.id)));
+
+          existingSnap.forEach((d) => {
+            if (!incomingDocIds.has(d.id)) {
+              ops.push({ type: 'delete', ref: d.ref });
+            }
+          });
+
+          records.forEach((rec, idx) => {
+            const docId = toSafeDocId(rec.id);
+            const eqRef = doc(equipmentsColRef, docId);
+            ops.push({
+              type: 'set',
+              ref: eqRef,
+              data: {
+                ...rec,
+                createdAt: baseTs - idx,
+                updatedAt: baseTs
+              }
+            });
+          });
+
+          const logRef = doc(logsColRef);
+          ops.push({
+            type: 'set',
+            ref: logRef,
+            data: {
+              timestamp: getCurrentTimestamp(),
+              createdAt: baseTs + 1,
+              action: '取代',
+              eqId: 'BATCH-REPLACE',
+              eqName: importState.fileName || '試算表匯入',
+              operator: '管理員 (Admin)',
+              detail: `已匯入新清單並完整取代雲端舊有 ${oldCount} 筆資料，目前共 ${records.length} 筆設備`
+            }
+          });
+
+          await commitOperationsInChunks(ops);
+
+          currentFilter.category = 'all';
+          currentFilter.status = 'all';
+          closeModal('import-modal');
+          showToast(`已完成雲端完整取代匯入！共載入 ${records.length} 筆最新設備並自動建立分類。`, 'amber');
+          return;
+        }
+
+        // 'skip' 或 'overwrite' 模式
+        const existingSnap = await getDocs(equipmentsColRef);
+        const existingMap = new Map();
+        existingSnap.forEach(d => {
+          existingMap.set(d.id, d.data());
+        });
+
+        let addedCount = 0;
+        let updatedCount = 0;
+        let skippedCount = 0;
+
+        records.forEach((rec, idx) => {
+          const docId = toSafeDocId(rec.id);
+          const eqRef = doc(equipmentsColRef, docId);
+
+          if (existingMap.has(docId)) {
+            if (mode === 'overwrite') {
+              const prevCreatedAt = existingMap.get(docId)?.createdAt || (baseTs - idx);
+              ops.push({
+                type: 'set',
+                ref: eqRef,
+                data: {
+                  ...rec,
+                  createdAt: prevCreatedAt,
+                  updatedAt: baseTs
+                }
+              });
+              updatedCount++;
+            } else {
+              skippedCount++;
+            }
+          } else {
+            ops.push({
+              type: 'set',
+              ref: eqRef,
+              data: {
+                ...rec,
+                createdAt: baseTs - idx,
+                updatedAt: baseTs
+              }
+            });
+            addedCount++;
+          }
+        });
+
+        const logRef = doc(logsColRef);
+        ops.push({
+          type: 'set',
+          ref: logRef,
+          data: {
+            timestamp: getCurrentTimestamp(),
+            createdAt: baseTs + 1,
+            action: '匯入',
+            eqId: 'BATCH-IMPORT',
+            eqName: importState.fileName || '試算表匯入',
+            operator: '管理員 (Admin)',
+            detail: `新增 ${addedCount} 筆、更新 ${updatedCount} 筆、略過重複 ${skippedCount} 筆`
+          }
+        });
+
+        await commitOperationsInChunks(ops);
+
+        closeModal('import-modal');
+        showToast(`雲端批次匯入完成！新增 ${addedCount} 筆${updatedCount > 0 ? `、更新 ${updatedCount} 筆` : ''}設備。`, 'green');
+      } catch (err) {
+        console.error('雲端批次匯入失敗:', err);
+        showToast(`雲端批次匯入失敗：${err.message || '請稍後再試'}`, 'error');
+      } finally {
+        confirmBtn.disabled = false;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. 匯出 CSV 報表 (UTF-8 BOM 確保 Excel 開啟繁體中文不亂碼)
+    // -------------------------------------------------------------------------
+    function exportCSV() {
+      if (equipments.length === 0) {
+        showToast('目前無任何設備資料可供匯出。', 'amber');
+        return;
+      }
+
+      const headers = [
+        '設備編號',
+        '設備名稱',
+        '設備分類',
+        '核心規格',
+        '存放位置',
+        '目前狀態',
+        '借用人姓名',
+        '所屬部門',
+        '聯絡方式',
+        '借用日期',
+        '預計歸還日期',
+        '借用用途或維護備註'
+      ];
+
+      const statusTextMap = {
+        available: '可借用',
+        borrowed: '借出中',
+        maintenance: '維護中'
+      };
+
+      const rows = equipments.map(eq => [
+        eq.id,
+        eq.name,
+        eq.category,
+        eq.specs,
+        eq.location,
+        statusTextMap[eq.status] || eq.status,
+        eq.borrower || '',
+        eq.dept || '',
+        eq.contact || '',
+        eq.borrowDate || '',
+        eq.dueDate || '',
+        eq.status === 'maintenance' ? (eq.maintNote || '') : (eq.purpose || '')
+      ]);
+
+      const escapeCSVCell = val => {
+        const s = String(val ?? '');
+        if (s.includes('"') || s.includes(',') || s.includes('\n')) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
+
+      const csvContent =
+        '\uFEFF' +
+        [headers, ...rows]
+          .map(row => row.map(escapeCSVCell).join(','))
+          .join('\r\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `CSTO_設備資產與借用報表_${getTodayDateString()}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast(`已成功匯出 ${equipments.length} 筆設備 CSV 報表！`, 'cyan');
+    }
+
+    // -------------------------------------------------------------------------
+    // 明確掛載所有互動函式至全域 window，徹底避免 ES Module ReferenceError
+    // -------------------------------------------------------------------------
+    window.openAuthModal = openAuthModal;
+    window.openAddModal = openAddModal;
+    window.openImportModal = openImportModal;
+    window.openClearAllModal = openClearAllModal;
+    window.exportCSV = exportCSV;
+    window.filterByKPI = filterByKPI;
+    window.handleSearchInput = handleSearchInput;
+    window.clearSearch = clearSearch;
+    window.setStatusFilter = setStatusFilter;
+    window.setViewMode = setViewMode;
+    window.setCategoryFilter = setCategoryFilter;
+    window.downloadExcelTemplate = downloadExcelTemplate;
+    window.resetAllFilters = resetAllFilters;
+    window.closeModal = closeModal;
+    window.submitBorrowForm = submitBorrowForm;
+    window.submitReturnForm = submitReturnForm;
+    window.submitAddForm = submitAddForm;
+    window.generateRandomEqId = generateRandomEqId;
+    window.submitMaintForm = submitMaintForm;
+    window.confirmDeleteEquipment = confirmDeleteEquipment;
+    window.handleImportFileSelect = handleImportFileSelect;
+    window.parseSelectedSheetScope = parseSelectedSheetScope;
+    window.handleImportModeChange = handleImportModeChange;
+    window.confirmBatchImport = confirmBatchImport;
+    window.submitAdminLogin = submitAdminLogin;
+    window.fillDefaultPasscode = fillDefaultPasscode;
+    window.submitChangePasscode = submitChangePasscode;
+    window.switchToGuestMode = switchToGuestMode;
+    window.confirmClearAllData = confirmClearAllData;
+    window.openBorrowModal = openBorrowModal;
+    window.openReturnModal = openReturnModal;
+    window.openMaintModal = openMaintModal;
+    window.completeMaintenance = completeMaintenance;
+    window.openDeleteModal = openDeleteModal;
+    window.requireAdmin = requireAdmin;
+
+    // -------------------------------------------------------------------------
+    // 系統初始化掛載
+    // -------------------------------------------------------------------------
+    function bootstrapApp() {
+      updateLiveClock();
+      setInterval(updateLiveClock, 1000);
+      updatePermissionUI();
+      if (window.lucide) window.lucide.createIcons();
+
+      // 網路離線/上線事件即時監聽
+      window.addEventListener('offline', () => {
+        setCloudSyncStatus('local', 'NETWORK OFFLINE // 離線模式');
+        showToast('網路連線已中斷，目前暫停雲端即時同步。', 'error');
+      });
+      window.addEventListener('online', () => {
+        if (isCloudOperational()) {
+          setCloudSyncStatus('online', 'CLOUD SYNC // ONLINE');
+          showToast('網路連線已恢復，雲端即時同步運作中。', 'green');
+        }
+      });
+
+      // 拖曳檔案至匯入區監聽
+      const dropzone = document.getElementById('import-dropzone');
+      if (dropzone) {
+        dropzone.addEventListener('dragover', e => {
+          e.preventDefault();
+          dropzone.classList.add('border-neonGreen', 'bg-neonGreen/10');
+        });
+        dropzone.addEventListener('dragleave', () => {
+          dropzone.classList.remove('border-neonGreen', 'bg-neonGreen/10');
+        });
+        dropzone.addEventListener('drop', e => {
+          e.preventDefault();
+          dropzone.classList.remove('border-neonGreen', 'bg-neonGreen/10');
+          const file = e.dataTransfer?.files?.[0];
+          if (file) processImportFile(file);
+        });
+      }
+
+      // 點擊視窗背景遮罩關閉對應視窗
+      const allModals = [
+        'borrow-modal',
+        'return-modal',
+        'add-modal',
+        'maint-modal',
+        'delete-eq-modal',
+        'import-modal',
+        'auth-modal',
+        'clear-all-modal'
+      ];
+
+      allModals.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('click', e => {
+            if (e.target === el) closeModal(id);
+          });
+        }
+      });
+
+      // ESC 鍵快速關閉開啟中的彈窗
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          allModals.forEach(id => closeModal(id));
+        }
+      });
+
+      // 啟動雲端資料庫即時同步
+      initCloudSync();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', bootstrapApp);
+    } else {
+      bootstrapApp();
+    }
+  </script>
+</body>
+</html>
